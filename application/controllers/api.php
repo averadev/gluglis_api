@@ -8,9 +8,9 @@ require APPPATH.'/libraries/REST_Controller.php';
 
 
 /**
- * The Saving coupon
+ * Gluglis
  * Author: Alberto Vera Espitia
- * GeekBucket 2014
+ * GeekBucket 2015
  *
  */
 class Api extends REST_Controller {
@@ -23,7 +23,7 @@ class Api extends REST_Controller {
 
 	public function index_get(){
        // $this->load->view('web/vwApi');
-	   echo "hola";
+	   echo "";
     }
 	
 	/**
@@ -153,6 +153,25 @@ class Api extends REST_Controller {
 			$this->api_db->updateStatusChat($update);
 			$message = array('success' => true, 'message' => "chat bloqueado", 'status' => $status );
         }
+        $this->response($message, 200);
+	}
+    
+    
+    
+    
+    
+    /************** Pantalla HOME ******************/
+    
+    /**
+	 * Obtiene los usuarios por ciudad
+	 */
+	public function getUsersByCity_get(){
+		$items = $this->api_db->getUsersByCity($this->get('idCity'));
+        foreach($items as $item){
+            $item->idiomas = unserialize($item->idiomas);
+            $item->hobbies = unserialize($item->hobbies);
+        }
+        $message = array('success' => true, 'items' => $items );
         $this->response($message, 200);
 	}
 	

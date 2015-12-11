@@ -80,6 +80,20 @@ Class api_db extends CI_MODEL
 		$this->db->where('user_id', $data['user_id']);
         $this->db->update('wp_bp_chat_channel_users', $data);
 	}
+    
+    
+    /************** Pantalla HOME ******************/
+	
+	/**
+	 * Obtiene los usuarios por ciudad
+	 */
+	function getUsersByCity($idCity){
+        $this->db->from('users');
+		return $this->db->get()->result();
+	}
+    
+    
+    
 }
 //end model
 
