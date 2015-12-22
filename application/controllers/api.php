@@ -165,7 +165,7 @@ class Api extends REST_Controller {
 				'channel_id'	=> $this->get('channelId'),
 				'sender_id'		=> $this->get('idApp')
 			);
-			//$this->api_db->changeStatusMessages($update);
+			$this->api_db->changeStatusMessages($update);
 			$message = array('success' => true, 'message' => "mensajes leidos" );
         }
         $this->response($message, 200);
