@@ -33,7 +33,7 @@ Class api_db extends CI_MODEL
 	}
 	
 	/**
-	 * obtenemos el usuario del mensaje
+	 * obtenemos el usuario del mensaje de la lista de chats
 	 */
 	public function getUserChat($channelId,$id){
 		$this->db->select('wp_bp_chat_channel_users.status');
@@ -42,6 +42,20 @@ Class api_db extends CI_MODEL
 		$this->db->join('wp_users', 'wp_users.id = wp_bp_chat_channel_users.user_id');
 		$this->db->where('wp_bp_chat_channel_users.channel_id = ', $channelId);
 		$this->db->where('wp_users.id != ', $id);
+		$this->db->limit(1);
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * obtenemos la info del usuario del canal por id
+	 */
+	public function getUserChatById($channelId,$id){
+		$this->db->select('wp_bp_chat_channel_users.status');
+		$this->db->select('wp_users.id as idUSer, wp_users.display_name, wp_users.playerId');
+		$this->db->from('wp_bp_chat_channel_users');
+		$this->db->join('wp_users', 'wp_users.id = wp_bp_chat_channel_users.user_id');
+		$this->db->where('wp_bp_chat_channel_users.channel_id = ', $channelId);
+		$this->db->where('wp_users.id = ', $id);
 		$this->db->limit(1);
         return $this->db->get()->result();
 	}
@@ -117,7 +131,47 @@ Class api_db extends CI_MODEL
         $this->db->from('users');
 		return $this->db->get()->result();
 	}
-    
+	
+	/************** Pantalla PROFILR ******************/
+	
+	/**
+	 * Verifica si existe el canal
+	 */
+	public function startConversation($idApp){
+		$this->db->select('wp_bp_chat_channel_users.channel_id');
+		$this->db->from('wp_bp_chat_channel_users');
+		$this->db->where('wp_bp_chat_channel_users.user_id = ', $idApp);
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * obtenemos la lista de mensajes chats del usuario
+	 */
+	public function getChannelChat($channelId,$id){
+		$this->db->select('wp_bp_chat_messages.id, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.message, wp_bp_chat_messages.status_message');
+		$this->db->select('wp_bp_chat_messages.sender_id, wp_bp_chat_messages.sent_at, wp_bp_chat_messages.sent_at');
+		$this->db->select('(select count(*) from wp_bp_chat_messages where wp_bp_chat_messages.channel_id = ' . 
+			$channelId . ' and wp_bp_chat_messages.status_message = 0 and wp_bp_chat_messages.sender_id != ' . $id . ' ) as NoRead ');
+		$this->db->from('wp_bp_chat_messages');
+		$this->db->where('wp_bp_chat_messages.channel_id = ', $channelId);
+		$this->db->order_by('wp_bp_chat_messages.sent_at', 'desc');
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * crea un nuevo canal de chat
+	 */
+	public function createChannel($data){
+		$this->db->insert('wp_bp_chat_channels', $data);
+		return $this->db->insert_id();
+	}
+	
+    /**
+	 * inserta los usuarios al canal
+	 */
+	public function createChannelUser($data){
+		$this->db->insert_batch('wp_bp_chat_channel_users', $data); 
+	}
     
     
 }

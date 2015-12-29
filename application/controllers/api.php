@@ -38,12 +38,12 @@ class Api extends REST_Controller {
 			$chats = array();
 			foreach($channel as $item){
 				$result = $this->api_db->getListMessageChat($item->channel_id,$this->get('idApp'));
-				$user = $this->api_db->getUserChat($item->channel_id,$this->get('idApp'));
-				$result[0]->idUSer = $user[0]->idUSer;
-				$result[0]->display_name = $user[0]->display_name;
-				$result[0]->blockYour = $user[0]->status;
-				$result[0]->blockMe = $item->status;
 				if(count($result) > 0){
+					$user = $this->api_db->getUserChat($item->channel_id,$this->get('idApp'));
+					$result[0]->idUSer = $user[0]->idUSer;
+					$result[0]->display_name = $user[0]->display_name;
+					$result[0]->blockYour = $user[0]->status;
+					$result[0]->blockMe = $item->status;
 					$array2 = json_decode(json_encode($result[0]),true);
 					array_push($chats, $array2);
 				}
@@ -113,6 +113,7 @@ class Api extends REST_Controller {
 			);
             $chat = $this->api_db->InsertMessageOfChat($insert);
 			$user = $this->api_db->getUserChat($this->get('channelId'),$this->get('idApp'));
+			$user2 = $this->api_db->getUserChatById($this->get('channelId') ,$this->get('idApp'));
 			$noRead = $this->api_db->getChatNoReadById($this->get('channelId'),$this->get('idApp'));
 		
 			foreach($chat as $item){
@@ -124,6 +125,8 @@ class Api extends REST_Controller {
 				$item->idUSer = $user[0]->idUSer;
 				$item->display_name = $user[0]->display_name;
 				$item->NoRead = $noRead[0]->NoRead;
+				$item->blockYour = $user[0]->status;
+				$item->blockMe = $user2[0]->status;
 				if($user[0]->playerId != '0' || $user[0]->playerId != 0){
 					$this->SendNotificationPush($user[0]->playerId,json_encode($chat),"1");
 				}
@@ -183,6 +186,77 @@ class Api extends REST_Controller {
             $item->hobbies = unserialize($item->hobbies);
         }
         $message = array('success' => true, 'items' => $items );
+        $this->response($message, 200);
+	}
+	
+	/************** Pantalla PROFILE ******************/
+    
+    /**
+	 * Obtiene los usuarios por ciudad
+	 */
+	public function startConversation_get(){
+		$message = $this->verifyIsSet(array('idApp'));
+		if ($message == null) {
+			//obtenemos la lista de canales
+			$channelId1 = $this->api_db->getChannelsById($this->get('idApp'));
+			$channelId2 = $this->api_db->getChannelsById($this->get('idUser'));
+			$channelId = 0;
+			$thereChannel = false;
+			//comprueba si el chat no existe
+			for ($i = 0; $i<count($channelId1); $i++) {
+				for ($j = 0; $j<count($channelId2); $j++) {
+					if($channelId1[$i]->channel_id == $channelId2[$j]->channel_id){
+						$channelId = $channelId1[$i]->channel_id;
+					}
+				}
+			}
+			
+			//verificamos si existe
+			if($channelId != 0 ){
+				$thereChannel = true;
+			
+			}else{
+				//en caso de no existir creamos un nuevo canal
+				$thereChannel = false;
+				$hoy = getdate();
+				$strHoy = $hoy["year"]."-".$hoy["mon"]."-".$hoy["mday"] . " " . $hoy["hours"] . ":" . $hoy["minutes"] . ":" . $hoy["seconds"];
+				$insertChannel = array(
+					'time_created'		=> $strHoy,
+					'status'			=> 1,
+					'is_multichat'		=> 0,
+					'is_open'			=> 1
+				);
+				$channelId = $this->api_db->createChannel($insertChannel);
+				
+				//se crea los usuarios del canal
+				$insertChannelUsers = array(
+					array(
+						'channel_id' 	=> $channelId,
+						'user_id' 		=> $this->get('idApp'),
+						'status' 		=> 'open' ,
+						'has_initiated' => '0'
+					),
+					array(
+						'channel_id' 	=> $channelId,
+						'user_id' 		=> $this->get('idUser'),
+						'status' 		=> 'open' ,
+						'has_initiated' => '0'
+					)
+				);
+				$this->api_db->createChannelUser($insertChannelUsers);	
+
+			}
+			
+			$result = $this->api_db->getUserChatById($channelId ,$this->get('idApp'));
+			$user = $this->api_db->getUserChat($channelId,$this->get('idApp'));
+			$user[0]->channel_id = $channelId;
+			//$user[0]->idUSer = $user[0]->idUSer;
+			/*$result[0]->display_name = $user[0]->display_name;*/
+			$user[0]->blockYour = $user[0]->status;
+			$user[0]->blockMe = $result[0]->status;
+			
+			$message = array('success' => true, 'thereChannel' => $thereChannel, 'item' => $user[0]);
+        }
         $this->response($message, 200);
 	}
 	
