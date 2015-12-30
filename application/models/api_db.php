@@ -22,7 +22,7 @@ Class api_db extends CI_MODEL
 	 * obtenemos la lista de mensajes chats del usuario
 	 */
 	public function getListMessageChat($channelId,$id){
-		$this->db->select('wp_bp_chat_messages.id, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.message, wp_bp_chat_messages.status_message');
+		$this->db->select('wp_bp_chat_messages.id as idMessage, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.message, wp_bp_chat_messages.status_message');
 		$this->db->select('wp_bp_chat_messages.sender_id, wp_bp_chat_messages.sent_at, wp_bp_chat_messages.sent_at');
 		$this->db->select('(select count(*) from wp_bp_chat_messages where wp_bp_chat_messages.channel_id = ' . 
 			$channelId . ' and wp_bp_chat_messages.status_message = 0 and wp_bp_chat_messages.sender_id != ' . $id . ' ) as NoRead ');
@@ -38,8 +38,10 @@ Class api_db extends CI_MODEL
 	public function getUserChat($channelId,$id){
 		$this->db->select('wp_bp_chat_channel_users.status');
 		$this->db->select('wp_users.id as idUSer, wp_users.display_name, wp_users.playerId');
+		$this->db->select('wp_social_users.type, wp_social_users.identifier');
 		$this->db->from('wp_bp_chat_channel_users');
 		$this->db->join('wp_users', 'wp_users.id = wp_bp_chat_channel_users.user_id');
+		$this->db->join('wp_social_users', 'wp_social_users.ID = wp_users.id','left');
 		$this->db->where('wp_bp_chat_channel_users.channel_id = ', $channelId);
 		$this->db->where('wp_users.id != ', $id);
 		$this->db->limit(1);
@@ -94,7 +96,7 @@ Class api_db extends CI_MODEL
 		$this->db->insert('wp_bp_chat_messages', $data);
 		$id = $this->db->insert_id();
 		
-		$this->db->select('wp_bp_chat_messages.id, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.sender_id, wp_bp_chat_messages.message');
+		$this->db->select('wp_bp_chat_messages.id as idMessage, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.sender_id, wp_bp_chat_messages.message');
 		$this->db->select('wp_bp_chat_messages.sent_at, date(wp_bp_chat_messages.sent_at) as date');
 		$this->db->from('wp_bp_chat_messages');
 		$this->db->where('wp_bp_chat_messages.id = ', $id);
@@ -120,15 +122,25 @@ Class api_db extends CI_MODEL
 		$this->db->where('id <= ', $data['id']);
         $this->db->update('wp_bp_chat_messages');
 	}
-    
+	
+	/**
+	 * actualiza la fecha del ultimo mensaje enviado en canal
+	 */
+	function updateLastMessage($date, $channelId){
+		$this->db->set('last_message_time', $date); 
+		$this->db->where('id', $channelId);
+        $this->db->update('wp_bp_chat_channels');
+	}
     
     /************** Pantalla HOME ******************/
 	
 	/**
 	 * Obtiene los usuarios por ciudad
 	 */
-	function getUsersByCity($idCity){
+	function getUsersByCity($idCity,$idApp){
         $this->db->from('users');
+		$this->db->join('wp_social_users', 'users.id = wp_social_users.ID','left');
+		$this->db->where('users.id != ', $idApp);
 		return $this->db->get()->result();
 	}
 	

@@ -40,10 +40,13 @@ class Api extends REST_Controller {
 				$result = $this->api_db->getListMessageChat($item->channel_id,$this->get('idApp'));
 				if(count($result) > 0){
 					$user = $this->api_db->getUserChat($item->channel_id,$this->get('idApp'));
-					$result[0]->idUSer = $user[0]->idUSer;
+					$result[0]->id = $user[0]->idUSer;
 					$result[0]->display_name = $user[0]->display_name;
 					$result[0]->blockYour = $user[0]->status;
 					$result[0]->blockMe = $item->status;
+					$result[0]->image = $result[0]->id . ".png";
+					$result[0]->type = $user[0]->type;
+					$result[0]->identifier = $user[0]->identifier;
 					$array2 = json_decode(json_encode($result[0]),true);
 					array_push($chats, $array2);
 				}
@@ -111,10 +114,12 @@ class Api extends REST_Controller {
 				'message' 		=> $this->get('message')
 				//'sent_at'			=> $this->get('dateM')
 			);
-            $chat = $this->api_db->InsertMessageOfChat($insert);
-			$user = $this->api_db->getUserChat($this->get('channelId'),$this->get('idApp'));
-			$user2 = $this->api_db->getUserChatById($this->get('channelId') ,$this->get('idApp'));
-			$noRead = $this->api_db->getChatNoReadById($this->get('channelId'),$this->get('idApp'));
+            $chat = $this->api_db->InsertMessageOfChat($insert); //inserta el mensaje del chats
+			$user = $this->api_db->getUserChat($this->get('channelId'),$this->get('idApp')); //obtiene los datos del otro usuario
+			$user2 = $this->api_db->getUserChatById($this->get('channelId') ,$this->get('idApp')); // obtiene el status del usuario
+			$noRead = $this->api_db->getChatNoReadById($this->get('channelId'),$this->get('idApp')); //obtiene los mensajes no leidos
+			
+			$this->api_db->updateLastMessage($chat[0]->sent_at,$chat[0]->channel_id); //actualiza el tiempo del ultimo mensaje enviado en canal
 		
 			foreach($chat as $item){
 				$date = date_create($item->sent_at);
@@ -122,15 +127,19 @@ class Api extends REST_Controller {
 				$item->fechaFormat = date('d', strtotime($item->sent_at)) . ' de ' . 
 					$months[date('n', strtotime($item->sent_at))] . ' del ' . 
 					date('Y', strtotime($item->sent_at));
-				$item->idUSer = $user[0]->idUSer;
+				$item->id = $user[0]->idUSer;
 				$item->display_name = $user[0]->display_name;
 				$item->NoRead = $noRead[0]->NoRead;
 				$item->blockYour = $user[0]->status;
 				$item->blockMe = $user2[0]->status;
+				$item->image = $item->id . ".png";
+				$item->type = $user[0]->type;
+				$item->identifier = $user[0]->identifier;
 				if($user[0]->playerId != '0' || $user[0]->playerId != 0){
 					$this->SendNotificationPush($user[0]->playerId,json_encode($chat),"1");
 				}
 			}
+			
 			$message = array('success' => true, 'items' => $chat );
         }
         $this->response($message, 200);
@@ -180,7 +189,7 @@ class Api extends REST_Controller {
 	 * Obtiene los usuarios por ciudad
 	 */
 	public function getUsersByCity_get(){
-		$items = $this->api_db->getUsersByCity($this->get('idCity'));
+		$items = $this->api_db->getUsersByCity($this->get('idCity'),$this->get('idApp'));
         foreach($items as $item){
             $item->idiomas = unserialize($item->idiomas);
             $item->hobbies = unserialize($item->hobbies);
@@ -214,6 +223,23 @@ class Api extends REST_Controller {
 			//verificamos si existe
 			if($channelId != 0 ){
 				$thereChannel = true;
+				
+				//se crea los usuarios del canal
+				/*$insertChatUsers = array(
+					array(
+						'user_id' 	=> $channelId,
+						'is_online' 		=> $this->get('idApp'),
+						'last_active_time' 		=> 'open' ,
+						'status_message' => '0'
+					),
+					array(
+						'channel_id' 	=> $channelId,
+						'user_id' 		=> $this->get('idUser'),
+						'status' 		=> 'open' ,
+						'has_initiated' => '0'
+					)
+				);
+				$this->api_db->createChannelUser($insertChannelUsers);*/
 			
 			}else{
 				//en caso de no existir creamos un nuevo canal
@@ -243,17 +269,19 @@ class Api extends REST_Controller {
 						'has_initiated' => '0'
 					)
 				);
-				$this->api_db->createChannelUser($insertChannelUsers);	
+				$this->api_db->createChannelUser($insertChannelUsers);
+
+				
 
 			}
 			
 			$result = $this->api_db->getUserChatById($channelId ,$this->get('idApp'));
 			$user = $this->api_db->getUserChat($channelId,$this->get('idApp'));
 			$user[0]->channel_id = $channelId;
-			//$user[0]->idUSer = $user[0]->idUSer;
-			/*$result[0]->display_name = $user[0]->display_name;*/
 			$user[0]->blockYour = $user[0]->status;
 			$user[0]->blockMe = $result[0]->status;
+			$user[0]->image = $user[0]->idUSer . ".png";
+			$user[0]->id = $user[0]->idUSer;
 			
 			$message = array('success' => true, 'thereChannel' => $thereChannel, 'item' => $user[0]);
         }
