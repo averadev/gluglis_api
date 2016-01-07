@@ -139,7 +139,30 @@ Class api_db extends CI_MODEL
 	 */
 	function getUsersByCity($idCity,$idApp){
         $this->db->from('users');
-		$this->db->join('wp_social_users', 'users.id = wp_social_users.ID','left');
+		$this->db->where('users.id != ', $idApp);
+		return $this->db->get()->result();
+	}
+	
+	/**
+	 * Obtiene los usuarios por filtro
+	 */
+	function getUsersByFilter($idApp,$data){
+        $this->db->from('users');
+		//condiciones
+		if($data['city'] != "0"){
+			//$this->db->where('users.residencia = ', "Cancún, Mexico");
+			$this->db->where('users.residencia = ', $data['city']);
+		}
+		if($data['iniDate'] != "0000-00-00"){
+			//$this->db->where('users.residencia = ', $data['iniDate']);
+		}
+		if($data['genH'] == 1 && $data['genM'] == 0 ){
+			$this->db->where('users.genero = ', "Hombre");
+		}else if($data['genM'] == 1 && $data['genH'] == 0 ){
+			$this->db->where('users.genero = ', "Mujer");
+		}
+		$this->db->where('users.edad >= ', $data['iniAge']);
+		$this->db->where('users.edad <= ', $data['endAge']);
 		$this->db->where('users.id != ', $idApp);
 		return $this->db->get()->result();
 	}

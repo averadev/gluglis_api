@@ -198,6 +198,28 @@ class Api extends REST_Controller {
         $this->response($message, 200);
 	}
 	
+	/**
+	 * Obtiene los usuarios por ciudad
+	 */
+	public function getUsersByFilter_get(){
+		$data = array(
+			'city' 			=> $this->get('city'),
+			'iniDate'		=> $this->get('iniDate'),
+			'endDate'		=> $this->get('endDate'),
+			'genH'			=> $this->get('genH'),
+			'genM'			=> $this->get('genM'),
+			'iniAge'		=> $this->get('iniAge'),
+			'endAge'		=> $this->get('endAge')
+		);
+		$items = $this->api_db->getUsersByFilter($this->get('idApp'),$data);
+        foreach($items as $item){
+            $item->idiomas = unserialize($item->idiomas);
+            $item->hobbies = unserialize($item->hobbies);
+        }
+        $message = array('success' => true, 'items' => $items );
+        $this->response($message, 200);
+	}
+	
 	/************** Pantalla PROFILE ******************/
     
     /**
@@ -270,9 +292,6 @@ class Api extends REST_Controller {
 					)
 				);
 				$this->api_db->createChannelUser($insertChannelUsers);
-
-				
-
 			}
 			
 			$result = $this->api_db->getUserChatById($channelId ,$this->get('idApp'));
