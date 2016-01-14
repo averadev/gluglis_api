@@ -9,8 +9,8 @@ require APPPATH.'/libraries/REST_Controller.php';
 
 /**
  * Gluglis
- * Author: Alberto Vera Espitia
- * GeekBucket 2015
+ * Author: Alfredo Zum
+ * Gluglis 2015
  *
  */
 class Api extends REST_Controller {
@@ -25,6 +25,76 @@ class Api extends REST_Controller {
        // $this->load->view('web/vwApi');
 	   echo "";
     }
+	/************** Pantalla LOGIN ******************/
+	
+	
+	/**
+	 * crea un nuevo usuario
+	 */
+	public function createUser_get(){
+		$message = $this->verifyIsSet(array('idApp'));
+		if ($message == null) {
+			$id = 0;
+			//verifica si existe o no el usuario
+			$result = $this->api_db->getUser($this->get('email'));
+			if(count($result) == 0){
+				$nameUser = "";
+				//verifica si existe la variableo le asigna vacio
+				if($this->get('name')){
+					$nameUser = $this->get('name');
+				}
+				$hoy = getdate();
+				$strHoy = $hoy["year"]."-".$hoy["mon"]."-".$hoy["mday"] . " " . $hoy["hours"] . ":" . $hoy["minutes"] . ":" . $hoy["seconds"];
+				$insert = array(
+					'user_login' 			=> $nameUser,
+					'user_pass' 			=> $this->get('pass'),
+					'user_nicename' 		=> $nameUser,
+					'user_email' 			=> $this->get('email'),
+					'user_url' 				=> '',
+					'user_registered' 		=> $strHoy,
+					'user_activation_key' 	=> '',
+					'user_status' 			=> '2',
+					'display_name' 			=> $nameUser,
+					'playerId'				=> $this->get('playerId'),
+				);
+				//inserta los datos de usuario normales
+				$id = $this->api_db->insertUser($insert);
+				//verifica si existe el parametro de genero
+				if($this->get('gender')){
+					$gen = "";
+					if($this->get('gender') == "Male" || $this->get('gender') == "male"){
+						$gen = "Hombre";
+					}else{
+						$gen = "Mujer";
+					}
+					$gender = array(
+						'field_id' 			=> 3,
+						'user_id' 			=> $id,
+						'value' 			=> $gen,
+						'last_updated' 		=> $strHoy,
+					);
+					//inserta el genero del usuario
+					$this->api_db->insertXProfileData($gender);
+				}
+				
+				//verifica si se loqueo mediante face
+				if($this->get('facebookId')){
+					$insert2 = array(
+						'ID' 			=> $id,
+						'type' 			=> "fb",
+						'identifier' 	=> $this->get('facebookId'),
+					);
+					//inserta los datos de facebook
+					$this->api_db->insertSocialUser($insert2);
+				}
+			}else{
+				$id = $result[0]->id;
+			}
+			
+			$message = array('success' => true, 'message' => "Usuario registrado", 'idApp' => $id );
+        }
+        $this->response($message, 200);
+	}
 	
 	/************** Pantalla MESSAGES ******************/
 	
@@ -184,6 +254,19 @@ class Api extends REST_Controller {
 	}
     
     /************** Pantalla HOME ******************/
+	
+	 /**
+	 * Obtiene los datos del usuario por id
+	 */
+	public function getUsersById_get(){
+		$items = $this->api_db->getUsersById($this->get('idApp'));
+        foreach($items as $item){
+            $item->idiomas = unserialize($item->idiomas);
+            $item->hobbies = unserialize($item->hobbies);
+        }
+        $message = array('success' => true, 'items' => $items );
+        $this->response($message, 200);
+	}
     
     /**
 	 * Obtiene los usuarios por ciudad
@@ -199,7 +282,7 @@ class Api extends REST_Controller {
 	}
 	
 	/**
-	 * Obtiene los usuarios por ciudad
+	 * Obtiene los usuarios filtrados
 	 */
 	public function getUsersByFilter_get(){
 		$data = array(
@@ -245,23 +328,6 @@ class Api extends REST_Controller {
 			//verificamos si existe
 			if($channelId != 0 ){
 				$thereChannel = true;
-				
-				//se crea los usuarios del canal
-				/*$insertChatUsers = array(
-					array(
-						'user_id' 	=> $channelId,
-						'is_online' 		=> $this->get('idApp'),
-						'last_active_time' 		=> 'open' ,
-						'status_message' => '0'
-					),
-					array(
-						'channel_id' 	=> $channelId,
-						'user_id' 		=> $this->get('idUser'),
-						'status' 		=> 'open' ,
-						'has_initiated' => '0'
-					)
-				);
-				$this->api_db->createChannelUser($insertChannelUsers);*/
 			
 			}else{
 				//en caso de no existir creamos un nuevo canal

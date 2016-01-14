@@ -6,6 +6,40 @@ Class api_db extends CI_MODEL
         parent::__construct();
     }
 	
+	/************** Pantalla LOGIN ******************/
+	
+	/**
+	 * valida si existe el usuario
+	 */
+	public function getUser($email){
+		$this->db->select('wp_users.Id as id');
+		$this->db->from('wp_users');
+		$this->db->where('wp_users.user_email = ', $email);
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * inserta un nuevo usuario
+	 */
+	public function insertUser($data){
+		$this->db->insert('wp_users', $data);
+		return $this->db->insert_id();
+	}
+	
+	/**
+	 * inserta el identificador social
+	 */
+	public function insertSocialUser($data){
+		$this->db->insert('wp_social_users', $data);
+	}
+	
+	/**
+	 * inserta los datos del usuario
+	 */
+	public function insertXProfileData($data){
+		$this->db->insert('wp_bp_xprofile_data', $data);
+	}
+	
 	/************** Pantalla MESSAGES ******************/
 	
 	/**
@@ -133,6 +167,15 @@ Class api_db extends CI_MODEL
 	}
     
     /************** Pantalla HOME ******************/
+	
+	/**
+	 * Obtiene la informacion del usuario por id
+	 */
+	public function getUsersById($idApp){
+		$this->db->from('users');
+		$this->db->where('users.id = ', $idApp);
+		return $this->db->get()->result();
+	}
 	
 	/**
 	 * Obtiene los usuarios por ciudad
