@@ -27,7 +27,6 @@ class Api extends REST_Controller {
     }
 	/************** Pantalla LOGIN ******************/
 	
-	
 	/**
 	 * crea un nuevo usuario
 	 */
@@ -36,7 +35,7 @@ class Api extends REST_Controller {
 		if ($message == null) {
 			$id = 0;
 			//verifica si existe o no el usuario
-			$result = $this->api_db->getUser($this->get('email'));
+			$result = $this->api_db->getUser($this->get('email'),$this->get('pass'));
 			if(count($result) == 0){
 				$nameUser = "";
 				//verifica si existe la variableo le asigna vacio
@@ -87,11 +86,41 @@ class Api extends REST_Controller {
 					//inserta los datos de facebook
 					$this->api_db->insertSocialUser($insert2);
 				}
+				$message = array('success' => true, 'message' => "Usuario registrado", 'idApp' => $id );
 			}else{
 				$id = $result[0]->id;
+				if($this->get('facebookId')){
+					$message = array('success' => true, 'message' => "Usuario registrado", 'idApp' => $id );
+				}else{
+					$message = array('success' => false, 'message' => "Usuario existente, intente con otra contraseña", 'idApp' => $id );
+				}
+			}
+        }
+        $this->response($message, 200);
+	}
+	
+	/**
+	 * valida el inicio de secion
+	 */
+	public function validateUser_get(){
+		$message = $this->verifyIsSet(array('idApp'));
+		if ($message == null) {
+			//verifica si existe o no el usuario
+			
+			if( $this->get('email') && $this->get('password') ){
+				$result = $this->api_db->validateUser($this->get('email'),$this->get('password'));
+				if(count($result) > 0){
+				//$this->api_db->updatePlayerId($result[0]->id, $this->get('playerId'));
+					$message = array( 'success' => true, 'message' => "Usuario correcto", 'item' => $result );
+				}else{
+					$message = array( 'success' => false, 'message' => "Usuario no encontrado" );
+				}
+			}else{
+				$message = array( 'success' => false, 'message' => "Usuario no encontrado" );
 			}
 			
-			$message = array('success' => true, 'message' => "Usuario registrado", 'idApp' => $id );
+			/**/
+			
         }
         $this->response($message, 200);
 	}

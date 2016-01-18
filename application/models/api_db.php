@@ -11,10 +11,21 @@ Class api_db extends CI_MODEL
 	/**
 	 * valida si existe el usuario
 	 */
-	public function getUser($email){
+	public function getUser($email,$pass){
 		$this->db->select('wp_users.Id as id');
 		$this->db->from('wp_users');
 		$this->db->where('wp_users.user_email = ', $email);
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * valida al usuario por correo o password
+	 */
+	public function validateUser($email, $pass){
+		$this->db->select('wp_users.Id as id, wp_users.user_email, wp_users.display_name');
+		$this->db->from('wp_users');
+		$this->db->where('wp_users.user_email = ', $email);
+		$this->db->where('wp_users.user_pass = ', $pass);
         return $this->db->get()->result();
 	}
 	
@@ -38,6 +49,15 @@ Class api_db extends CI_MODEL
 	 */
 	public function insertXProfileData($data){
 		$this->db->insert('wp_bp_xprofile_data', $data);
+	}
+	
+	/**
+	 * actualiza el token de notificaciones del usuario
+	 */
+	public function updatePlayerId($id, $playerId){
+		$this->db->set('wp_users.playerId', $playerId); 
+		$this->db->where('wp_users.ID = ', $id);
+        $this->db->update('wp_users');
 	}
 	
 	/************** Pantalla MESSAGES ******************/
