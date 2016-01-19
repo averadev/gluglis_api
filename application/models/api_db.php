@@ -19,6 +19,17 @@ Class api_db extends CI_MODEL
 	}
 	
 	/**
+	 * valida si existe el usuario
+	 */
+	public function getXprofileData($id,$field){
+		$this->db->select('wp_bp_xprofile_data.id');
+		$this->db->from('wp_bp_xprofile_data');
+		$this->db->where('wp_bp_xprofile_data.user_id = ', $id);
+		$this->db->where('wp_bp_xprofile_data.field_id = ', $field);
+        return $this->db->get()->result();
+	}
+	
+	/**
 	 * valida al usuario por correo o password
 	 */
 	public function validateUser($email, $pass){

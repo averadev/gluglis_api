@@ -34,6 +34,8 @@ class Api extends REST_Controller {
 		$message = $this->verifyIsSet(array('idApp'));
 		if ($message == null) {
 			$id = 0;
+			$hoy = getdate();
+			$strHoy = $hoy["year"]."-".$hoy["mon"]."-".$hoy["mday"] . " " . $hoy["hours"] . ":" . $hoy["minutes"] . ":" . $hoy["seconds"];
 			//verifica si existe o no el usuario
 			$result = $this->api_db->getUser($this->get('email'),$this->get('pass'));
 			if(count($result) == 0){
@@ -42,8 +44,6 @@ class Api extends REST_Controller {
 				if($this->get('name')){
 					$nameUser = $this->get('name');
 				}
-				$hoy = getdate();
-				$strHoy = $hoy["year"]."-".$hoy["mon"]."-".$hoy["mday"] . " " . $hoy["hours"] . ":" . $hoy["minutes"] . ":" . $hoy["seconds"];
 				$insert = array(
 					'user_login' 			=> $nameUser,
 					'user_pass' 			=> $this->get('pass'),
@@ -76,6 +76,28 @@ class Api extends REST_Controller {
 					$this->api_db->insertXProfileData($gender);
 				}
 				
+				if($this->get('birthday')){
+					$birthday = array(
+						'field_id' 			=> 25,
+						'user_id' 			=> $id,
+						'value' 			=> $this->get('birthday'),
+						'last_updated' 		=> $strHoy,
+					);
+					//inserta la fecha de nacimiento del usuario
+					$this->api_db->insertXProfileData($birthday);
+				}
+				
+				if($this->get('location')){
+					$location = array(
+						'field_id' 			=> 11,
+						'user_id' 			=> $id,
+						'value' 			=> $this->get('location'),
+						'last_updated' 		=> $strHoy,
+					);
+					//inserta la fecha de nacimiento del usuario
+					$this->api_db->insertXProfileData($location);
+				}
+				
 				//verifica si se loqueo mediante face
 				if($this->get('facebookId')){
 					$insert2 = array(
@@ -90,9 +112,37 @@ class Api extends REST_Controller {
 			}else{
 				$id = $result[0]->id;
 				if($this->get('facebookId')){
+					if($this->get('birthday')){
+						//verifica si existe los datos
+						$result1 = $this->api_db->getXprofileData($id, 25);
+						if(count($result1) == 0 ){
+							$birthday = array(
+								'field_id' 			=> 25,
+								'user_id' 			=> $id,
+								'value' 			=> $this->get('birthday'),
+								'last_updated' 		=> $strHoy,
+							);
+							//inserta la fecha de nacimiento del usuario
+							$this->api_db->insertXProfileData($birthday);
+						}
+					}
+					if($this->get('location')){
+						//verifica si existe los datos
+						$result1 = $this->api_db->getXprofileData($id, 11);
+						if(count($result1) == 0 ){
+							$location = array(
+								'field_id' 			=> 11,
+								'user_id' 			=> $id,
+								'value' 			=> $this->get('location'),
+								'last_updated' 		=> $strHoy,
+							);
+							//inserta la fecha de nacimiento del usuario
+							$this->api_db->insertXProfileData($location);
+						}
+					}
 					$message = array('success' => true, 'message' => "Usuario registrado", 'idApp' => $id );
 				}else{
-					$message = array('success' => false, 'message' => "Usuario existente, intente con otra contraseña", 'idApp' => $id );
+					$message = array('success' => false, 'message' => "Usuario existente, intente con otro correo", 'idApp' => $id );
 				}
 			}
         }
