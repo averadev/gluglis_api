@@ -284,15 +284,21 @@ class Api extends REST_Controller {
 				$item->image = $item->id . ".png";
 				$item->type = $user[0]->type;
 				$item->identifier = $user[0]->identifier;
+				$total = strlen($this->get('message'));
+				$messa = $this->get('message');
+				if($total > 35){
+					$messa = substr($messa, 0, 35) . "..."; 
+				}
+				$messa = $user2[0]->display_name . " : " . $messa;
 				if($user[0]->playerId != '0' || $user[0]->playerId != 0){
-					$this->SendNotificationPush($user[0]->playerId,json_encode($chat),"1");
+					$this->SendNotificationPush($user[0]->playerId,json_encode($chat),"1", $messa);
 				}
 			}
 			
 			$message = array('success' => true, 'items' => $chat );
         }
         $this->response($message, 200);
-	}
+	} 
 	
 	/**
 	 * bloquea o desbloquea los chats
@@ -378,11 +384,26 @@ class Api extends REST_Controller {
             $item->idiomas = unserialize($item->idiomas);
             $item->hobbies = unserialize($item->hobbies);
         }
-        $message = array('success' => true, 'items' => $items );
+		if(count($items) > 0){
+			$message = array('success' => true, 'items' => $items );
+		}else{
+			$message = array('success' => false, 'message' => "No se encontraron usuarios" );
+		}
+        
         $this->response($message, 200);
 	}
 	
 	/************** Pantalla PROFILE ******************/
+	
+	/**
+	 * Obtiene la lista de hobbies
+	 */
+	public function getHobbies_get(){
+		$items = $this->api_db->getHobbies();
+		$items2 = $this->api_db->getLanguage();
+        $message = array('success' => true, 'hobbies' => $items, 'language' => $items2 );
+        $this->response($message, 200);
+	}
     
     /**
 	 * Obtiene los usuarios por ciudad
@@ -452,6 +473,150 @@ class Api extends REST_Controller {
         $this->response($message, 200);
 	}
 	
+	/**
+	 * guarda los datos del usuario
+	 */
+	public function saveProfile_get(){
+		$message = $this->verifyIsSet(array('idApp'));
+		if ($message == null) {
+			//obtiene la fecha actual
+			$hoy = getdate();
+			$strHoy = $hoy["year"]."-".$hoy["mon"]."-".$hoy["mday"] . " " . $hoy["hours"] . ":" . $hoy["minutes"] . ":" . $hoy["seconds"];
+			
+			//verifica si existe la variable de nombre o asigna un vacio
+			$display_name = "";
+			if($this->get('name')){
+				$display_name = $this->get('name');
+			}
+			//actualiza el nombre del usuario
+			$update = array(
+				'ID'				=> $this->get('idApp'),
+				'display_name'		=> $display_name,
+			);
+			$this->api_db->updateProfile($update);
+			
+			//verifica si existe la variable de residencioa o asigna un vacio
+			$residence = "";
+			if($this->get('residence')){
+				$residence = $this->get('residence');
+			}	
+			//carga los datos de la residencia
+			$updateXdata = array(
+				'field_id' 			=> 11,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $residence,
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 11);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			//verifica si existe ofrese alojamiento o asigna un vacio
+			$updateXdata = array(
+				'field_id' 			=> 33,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('accommodation'),
+				'last_updated' 		=> $strHoy,
+			);
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 33);
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			//verifica si existe tiene vehiculo o asigna un vacio
+			$updateXdata = array(
+				'field_id' 			=> 109,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('vehicle'),
+				'last_updated' 		=> $strHoy,
+			);
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 109);
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			//verifica si esta disponible o asigna un vacio
+			$available = "";
+			if($this->get('available') == "Si" || $this->get('available') == "Sí" ){
+				$available = "Siempre";
+			}else{
+				$available = "Consultarme";
+			}
+			$updateXdata = array(
+				'field_id' 			=> 1316,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $available,
+				'last_updated' 		=> $strHoy,
+			);
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 1316);
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			//hobbies
+			if($this->get('hobbies')){
+				$hobbies = json_decode($this->get('hobbies'));
+				if(count($hobbies) > 0){
+					for($i=0;$i<count($hobbies);$i++){
+						$remplaza = str_replace("...", "/", $hobbies[$i]);
+						$hobbies[$i] = $remplaza;
+					}
+					$hobbies = serialize($hobbies);
+				}else{
+					$hobbies = "";
+				}
+				$updateXdata = array(
+					'field_id' 			=> 322,
+					'user_id' 			=> $this->get('idApp'),
+					'value' 			=> $hobbies,
+					'last_updated' 		=> $strHoy,
+				);
+				$result = $this->api_db->getXprofileData($this->get('idApp'), 322);
+				if(count($result) > 0){
+					$this->api_db->updateXProfileData($updateXdata);
+				}else{
+					$this->api_db->insertXProfileData($updateXdata);
+				}
+			}
+			
+			//language
+			if($this->get('language')){
+				$language = json_decode($this->get('language'));
+				if(count($language) > 0){
+					for($i=0;$i<count($language);$i++){
+						$remplaza = str_replace("...", "/", $language[$i]);
+						$language[$i] = $remplaza;
+					}
+					$language = serialize($language);
+				}else{
+					$language = "";
+				}
+				$updateXdata = array(
+					'field_id' 			=> 137,
+					'user_id' 			=> $this->get('idApp'),
+					'value' 			=> $language,
+					'last_updated' 		=> $strHoy,
+				);
+				$result = $this->api_db->getXprofileData($this->get('idApp'), 137);
+				if(count($result) > 0){
+					$this->api_db->updateXProfileData($updateXdata);
+				}else{
+					$this->api_db->insertXProfileData($updateXdata);
+				}
+			}
+			
+			$message = array('success' => true, 'message' => "Se han editado los datos del perfil." );
+        }
+        $this->response($message, 200);
+	}
+	
 	/************** metodo generico ******************/
 	
 	/**
@@ -468,11 +633,11 @@ class Api extends REST_Controller {
 	/**
 	 * Funcion para enviar notificaciones
 	 */
-	public function SendNotificationPush($playerId, $items, $type){
+	public function SendNotificationPush($playerId, $items, $type, $messa){
 		
 		$userID = [$playerId]; 
 		if($type == 1){
-			$massage = "Nuevo mensaje";
+			$massage = $messa;
 		}
 		$content = array(
 			"en" => $massage
@@ -482,7 +647,8 @@ class Api extends REST_Controller {
 		'include_player_ids' => $userID,
 		'data' => array("type" => $type, "item" => $items),
 		'isAndroid' => true,
-		'contents' => $content
+		'isIos' => true,
+		'contents' => $content,
 		);
     
 		$fields = json_encode($fields);

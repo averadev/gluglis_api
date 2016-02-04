@@ -235,13 +235,35 @@ Class api_db extends CI_MODEL
 		}else if($data['genM'] == 1 && $data['genH'] == 0 ){
 			$this->db->where('users.genero = ', "Mujer");
 		}
-		$this->db->where('users.edad >= ', $data['iniAge']);
-		$this->db->where('users.edad <= ', $data['endAge']);
+		$this->db->where("(users.edad is null or (users.edad >=" . $data['iniAge'] . " and users.edad <= " . $data['endAge'] . "))");
+		//$this->db->where('users.edad <= ', $data['endAge']);
+		//$this->db->where('users.edad <= ', $data['endAge']);
 		$this->db->where('users.id != ', $idApp);
+		
 		return $this->db->get()->result();
 	}
 	
-	/************** Pantalla PROFILR ******************/
+	/************** Pantalla PROFILE ******************/
+	
+	/**
+	 * obtiene la lista de hobbies
+	 */
+	public function getHobbies(){
+		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
+		$this->db->from('wp_bp_xprofile_fields');
+		$this->db->where('wp_bp_xprofile_fields.parent_id = 322 ');
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * obtiene la lista de idiomas
+	 */
+	public function getLanguage(){
+		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
+		$this->db->from('wp_bp_xprofile_fields');
+		$this->db->where('wp_bp_xprofile_fields.parent_id = 137 ');
+        return $this->db->get()->result();
+	}
 	
 	/**
 	 * Verifica si existe el canal
@@ -282,6 +304,22 @@ Class api_db extends CI_MODEL
 		$this->db->insert_batch('wp_bp_chat_channel_users', $data); 
 	}
     
+	/**
+	 * actualiza los datos generales del usuario
+	 */
+	public function updateProfile($data){
+		$this->db->where('wp_users.ID = ', $data['ID']);
+		$this->db->update('wp_users', $data);
+	}
+	
+	/**
+	 * actualiza los datos opcionales
+	 */
+	public function updateXProfileData($data){
+		$this->db->where('wp_bp_xprofile_data.field_id = ', $data['field_id']);
+		$this->db->where('wp_bp_xprofile_data.user_id = ', $data['user_id']);
+		$this->db->update('wp_bp_xprofile_data', $data);
+	}
     
 }
 //end model
