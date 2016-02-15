@@ -140,6 +140,7 @@ class Api extends REST_Controller {
 							$this->api_db->insertXProfileData($location);
 						}
 					}
+					$this->api_db->updatePlayerId($id, $this->get('playerId'));
 					$message = array('success' => true, 'message' => "Usuario registrado", 'idApp' => $id );
 				}else{
 					$message = array('success' => false, 'message' => "Usuario existente, intente con otro correo", 'idApp' => $id );
@@ -160,7 +161,7 @@ class Api extends REST_Controller {
 			if( $this->get('email') && $this->get('password') ){
 				$result = $this->api_db->validateUser($this->get('email'),$this->get('password'));
 				if(count($result) > 0){
-				//$this->api_db->updatePlayerId($result[0]->id, $this->get('playerId'));
+					$this->api_db->updatePlayerId($result[0]->id, $this->get('playerId'));
 					$message = array( 'success' => true, 'message' => "Usuario correcto", 'item' => $result );
 				}else{
 					$message = array( 'success' => false, 'message' => "Usuario no encontrado" );
@@ -289,16 +290,58 @@ class Api extends REST_Controller {
 				if($total > 35){
 					$messa = substr($messa, 0, 35) . "..."; 
 				}
-				$messa = $user2[0]->display_name . " : " . $messa;
-				if($user[0]->playerId != '0' || $user[0]->playerId != 0){
-					$this->SendNotificationPush($user[0]->playerId,json_encode($chat),"1", $messa);
-				}
+				//$isRead = $this->api_db->getMessageRead($chat[0]->idMessage); //comprueba que el mensaje no este leido
+				//if($isRead > 0){
+					$messa = $user2[0]->display_name . " : " . $messa;
+					if($user[0]->playerId != '0' || $user[0]->playerId != 0){
+						$this->SendNotificationPush($user[0]->playerId,json_encode($chat),"1", $messa);
+					}
+				//}
 			}
 			
 			$message = array('success' => true, 'items' => $chat );
         }
         $this->response($message, 200);
 	} 
+	
+	public function getMessagesByChannel_get(){
+		$message = $this->verifyIsSet(array('idApp'));
+		if ($message == null) {
+			$months = array('', 'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+			'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre');
+			$dias = array('Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo');
+            $messages = $this->api_db->getMessagesByChannelNotRead($this->get('channelId'),$this->get('idApp'));
+			$lastRead = $this->api_db->getLastMessageRead($this->get('channelId'),$this->get('idApp'));
+			if(count($lastRead) > 0){
+				$lastRead = $lastRead[0]->id;
+			}else{
+				$lastRead = 0;
+			}
+			$dateBefore = "";
+			foreach($messages as $item){
+				if($item->sender_id == $this->get('idApp')){
+					$item->isMe = true;
+				}else{
+					$item->isMe = false;
+				}
+				$fechaD = $dias[date('N', strtotime($item->sent_at)) - 1];
+				$item->dia = $fechaD;
+				$item->fechaFormat = date('d', strtotime($item->sent_at)) . ' de ' . 
+					$months[date('n', strtotime($item->sent_at))] . ' del ' . 
+					date('Y', strtotime($item->sent_at));
+				$date = date_create($item->sent_at);
+				$item->hora = date_format($date, 'g:i A');
+				if($dateBefore != $item->dateOnly){
+					$item->changeDate = 1;
+				}else{
+					$item->changeDate = 0;
+				}
+				$dateBefore = $item->dateOnly;
+			}
+			$message = array('success' => true, 'items' => $messages, 'lastRead' => $lastRead );
+        }
+        $this->response($message, 200);
+	}
 	
 	/**
 	 * bloquea o desbloquea los chats
@@ -348,6 +391,7 @@ class Api extends REST_Controller {
         foreach($items as $item){
             $item->idiomas = unserialize($item->idiomas);
             $item->hobbies = unserialize($item->hobbies);
+			$item->deportes = unserialize($item->deportes);
         }
         $message = array('success' => true, 'items' => $items );
         $this->response($message, 200);
@@ -361,6 +405,7 @@ class Api extends REST_Controller {
         foreach($items as $item){
             $item->idiomas = unserialize($item->idiomas);
             $item->hobbies = unserialize($item->hobbies);
+			$item->deportes = unserialize($item->deportes);
         }
         $message = array('success' => true, 'items' => $items );
         $this->response($message, 200);
@@ -371,18 +416,20 @@ class Api extends REST_Controller {
 	 */
 	public function getUsersByFilter_get(){
 		$data = array(
-			'city' 			=> $this->get('city'),
-			'iniDate'		=> $this->get('iniDate'),
-			'endDate'		=> $this->get('endDate'),
-			'genH'			=> $this->get('genH'),
-			'genM'			=> $this->get('genM'),
-			'iniAge'		=> $this->get('iniAge'),
-			'endAge'		=> $this->get('endAge')
+			'city' 				=> $this->get('city'),
+			'iniDate'			=> $this->get('iniDate'),
+			'endDate'			=> $this->get('endDate'),
+			'genH'				=> $this->get('genH'),
+			'genM'				=> $this->get('genM'),
+			'iniAge'			=> $this->get('iniAge'),
+			'endAge'			=> $this->get('endAge'),
+			'accommodation'		=> $this->get('accommodation')
 		);
 		$items = $this->api_db->getUsersByFilter($this->get('idApp'),$data);
         foreach($items as $item){
             $item->idiomas = unserialize($item->idiomas);
             $item->hobbies = unserialize($item->hobbies);
+			$item->deportes = unserialize($item->deportes);
         }
 		if(count($items) > 0){
 			$message = array('success' => true, 'items' => $items );
@@ -393,6 +440,26 @@ class Api extends REST_Controller {
         $this->response($message, 200);
 	}
 	
+	 /**
+	 * limpia los datos del usuario(playerId)
+	 */
+	public function clearUser_get(){
+		$items = $this->api_db->updatePlayerId($this->get('idApp'), '0');
+        $message = array('success' => true, 'message' => 'Sesion cerrada con exito' );
+        $this->response($message, 200);
+	}
+	
+	/**
+	 * actualiza el playerId cada vez que entra a la app
+	 */
+	public function updatePlayerId_get(){
+		$items = $this->api_db->updatePlayerId($this->get('idApp'), $this->get('playerId'));
+        $message = array('success' => true);
+        $this->response($message, 200);
+	}
+	
+	
+	
 	/************** Pantalla PROFILE ******************/
 	
 	/**
@@ -401,7 +468,11 @@ class Api extends REST_Controller {
 	public function getHobbies_get(){
 		$items = $this->api_db->getHobbies();
 		$items2 = $this->api_db->getLanguage();
-        $message = array('success' => true, 'hobbies' => $items, 'language' => $items2 );
+		$items3 = $this->api_db->getSport();
+		$items4 = $this->api_db->getResidenceTime();
+		$items5 = $this->api_db->getRace();
+		$items6 = $this->api_db->getWorkArea();
+        $message = array('success' => true, 'hobbies' => $items, 'language' => $items2, 'sport' => $items3, 'residenceTime' => $items4, 'race' => $items5, 'workArea' => $items6 );
         $this->response($message, 200);
 	}
     
@@ -485,8 +556,8 @@ class Api extends REST_Controller {
 			
 			//verifica si existe la variable de nombre o asigna un vacio
 			$display_name = "";
-			if($this->get('name')){
-				$display_name = $this->get('name');
+			if($this->get('UserName')){
+				$display_name = $this->get('UserName');
 			}
 			//actualiza el nombre del usuario
 			$update = array(
@@ -495,7 +566,65 @@ class Api extends REST_Controller {
 			);
 			$this->api_db->updateProfile($update);
 			
-			//verifica si existe la variable de residencioa o asigna un vacio
+			//name
+			$name = "";
+			if($this->get('name')){
+				$name = $this->get('name');
+			}	
+			//carga los datos de la residencia
+			$updateXdata = array(
+				'field_id' 			=> 2,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $name,
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 2);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//apellidos
+			$lastName = "";
+			if($this->get('lastName')){
+				$lastName = $this->get('lastName');
+			}	
+			//carga los datos de la residencia
+			$updateXdata = array(
+				'field_id' 			=> 24,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $lastName,
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 24);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//genero
+			$updateXdata = array(
+				'field_id' 			=> 3,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('gender'),
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 3);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//residencia
 			$residence = "";
 			if($this->get('residence')){
 				$residence = $this->get('residence');
@@ -515,51 +644,266 @@ class Api extends REST_Controller {
 			}else{
 				$this->api_db->insertXProfileData($updateXdata);
 			}
-			//verifica si existe ofrese alojamiento o asigna un vacio
+			
+			//residencia
+			$originCountry = "";
+			if($this->get('originCountry')){
+				$originCountry = $this->get('originCountry');
+			}	
+			//carga los datos de la residencia
+			$updateXdata = array(
+				'field_id' 			=> 8,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $originCountry,
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 8);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//tiempo de residencia
+			//carga los datos de la residencia
+			$updateXdata = array(
+				'field_id' 			=> 14,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('residenceTime'),
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 14);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//email
+			$emailContact = "";
+			if($this->get('emailContact')){
+				$emailContact = $this->get('emailContact');
+			}	
+			//carga los datos de la residencia
+			$updateXdata = array(
+				'field_id' 			=> 29,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $emailContact,
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 29);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//disponibilidad
+			$updateXdata = array(
+				'field_id' 			=> 1316,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('availability'),
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 1316);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//alojamiento
 			$updateXdata = array(
 				'field_id' 			=> 33,
 				'user_id' 			=> $this->get('idApp'),
 				'value' 			=> $this->get('accommodation'),
 				'last_updated' 		=> $strHoy,
 			);
+			//verifica si existe ya el campo en la bd
 			$result = $this->api_db->getXprofileData($this->get('idApp'), 33);
+			//inserta o actualiza los datos dependiendo si existe o no
 			if(count($result) > 0){
 				$this->api_db->updateXProfileData($updateXdata);
 			}else{
 				$this->api_db->insertXProfileData($updateXdata);
 			}
-			//verifica si existe tiene vehiculo o asigna un vacio
+			
+			//vehicle
 			$updateXdata = array(
 				'field_id' 			=> 109,
 				'user_id' 			=> $this->get('idApp'),
 				'value' 			=> $this->get('vehicle'),
 				'last_updated' 		=> $strHoy,
 			);
+			//verifica si existe ya el campo en la bd
 			$result = $this->api_db->getXprofileData($this->get('idApp'), 109);
+			//inserta o actualiza los datos dependiendo si existe o no
 			if(count($result) > 0){
 				$this->api_db->updateXProfileData($updateXdata);
 			}else{
 				$this->api_db->insertXProfileData($updateXdata);
 			}
-			//verifica si esta disponible o asigna un vacio
-			$available = "";
-			if($this->get('available') == "Si" || $this->get('available') == "Sí" ){
-				$available = "Siempre";
-			}else{
-				$available = "Consultarme";
-			}
+			
+			//food
 			$updateXdata = array(
-				'field_id' 			=> 1316,
+				'field_id' 			=> 36,
 				'user_id' 			=> $this->get('idApp'),
-				'value' 			=> $available,
+				'value' 			=> $this->get('food'),
 				'last_updated' 		=> $strHoy,
 			);
-			$result = $this->api_db->getXprofileData($this->get('idApp'), 1316);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 36);
+			//inserta o actualiza los datos dependiendo si existe o no
 			if(count($result) > 0){
 				$this->api_db->updateXProfileData($updateXdata);
 			}else{
 				$this->api_db->insertXProfileData($updateXdata);
 			}
+			
+			//race
+			$updateXdata = array(
+				'field_id' 			=> 125,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('race'),
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 125);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//workArea
+			$updateXdata = array(
+				'field_id' 			=> 214,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('workArea'),
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 214);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//ownAccount
+			$updateXdata = array(
+				'field_id' 			=> 319,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('ownAccount'),
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 319);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//pet
+			$pet = "No";
+			if($this->get('pet')){
+				$pet = "Sí";
+			}
+			
+			//carga los datos de la residencia
+			$updateXdata = array(
+				'field_id' 			=> 121,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $pet,
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 121);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			if($pet == "Sí"){
+				//carga los datos de la residencia
+				$updateXdata = array(
+					'field_id' 			=> 124,
+					'user_id' 			=> $this->get('idApp'),
+					'value' 			=> $this->get('pet'),
+					'last_updated' 		=> $strHoy,
+				);
+				//verifica si existe ya el campo en la bd
+				$result = $this->api_db->getXprofileData($this->get('idApp'), 124);
+				//inserta o actualiza los datos dependiendo si existe o no
+				if(count($result) > 0){
+					$this->api_db->updateXProfileData($updateXdata);
+				}else{
+					$this->api_db->insertXProfileData($updateXdata);
+				}
+			}
+			
+			//smoke
+			$updateXdata = array(
+				'field_id' 			=> 112,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('smoke'),
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 112);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//drink
+			$updateXdata = array(
+				'field_id' 			=> 115,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('drink'),
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 115);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			//drink
+			$updateXdata = array(
+				'field_id' 			=> 118,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $this->get('psychrotrophic'),
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 118);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
 			//hobbies
 			if($this->get('hobbies')){
 				$hobbies = json_decode($this->get('hobbies'));
@@ -612,7 +956,54 @@ class Api extends REST_Controller {
 				}
 			}
 			
-			$message = array('success' => true, 'message' => "Se han editado los datos del perfil." );
+			//pet
+			$sport = "No";
+			if($this->get('pet')){
+				$sport = "Sí";
+			}
+			
+			//carga los datos de la residencia
+			$updateXdata = array(
+				'field_id' 			=> 350,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $sport,
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 350);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			if($sport == "Sí"){
+				$sport = json_decode($this->get('sport'));
+				if(count($sport) > 0){
+					for($i=0;$i<count($sport);$i++){
+						$remplaza = str_replace("...", "/", $sport[$i]);
+						$sport[$i] = $remplaza;
+					}
+					$sport = serialize($sport);
+				}else{
+					$sport = "";
+				}
+				$updateXdata = array(
+					'field_id' 			=> 353,
+					'user_id' 			=> $this->get('idApp'),
+					'value' 			=> $sport,
+					'last_updated' 		=> $strHoy,
+				);
+				$result = $this->api_db->getXprofileData($this->get('idApp'), 353);
+				if(count($result) > 0){
+					$this->api_db->updateXProfileData($updateXdata);
+				}else{
+					$this->api_db->insertXProfileData($updateXdata);
+				}
+			}
+			
+			$message = array('success' => true, 'message' => "Los cambios a tu perfil han sido almacenados." );
         }
         $this->response($message, 200);
 	}

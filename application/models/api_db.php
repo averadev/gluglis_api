@@ -33,7 +33,7 @@ Class api_db extends CI_MODEL
 	 * valida al usuario por correo o password
 	 */
 	public function validateUser($email, $pass){
-		$this->db->select('wp_users.Id as id, wp_users.user_email, wp_users.display_name');
+		$this->db->select('wp_users.ID as id, wp_users.user_email, wp_users.display_name');
 		$this->db->from('wp_users');
 		$this->db->where('wp_users.user_email = ', $email);
 		$this->db->where('wp_users.user_pass = ', $pass);
@@ -155,6 +155,35 @@ Class api_db extends CI_MODEL
 	}
 	
 	/**
+	 * obtenemos la lista de mensajes del canal no leidos
+	 */
+	public function getMessagesByChannelNotRead($channelId, $idApp){
+		$this->db->select('wp_bp_chat_messages.id, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.sender_id');
+		$this->db->select('wp_bp_chat_messages.message, wp_bp_chat_messages.status_message');
+		$this->db->select('wp_bp_chat_messages.sent_at, date(wp_bp_chat_messages.sent_at) as dateOnly');
+		$this->db->from('wp_bp_chat_messages');
+		$this->db->where('wp_bp_chat_messages.channel_id = ', $channelId);
+		$this->db->where('wp_bp_chat_messages.status_message = ', 0);
+		$this->db->where('wp_bp_chat_messages.sender_id != ', $idApp);
+		$this->db->order_by('wp_bp_chat_messages.sent_at', 'asc');
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * obtenemos la lista de mensajes del canal no leidos
+	 */
+	public function getLastMessageRead($channelId, $idApp){
+		$this->db->select('wp_bp_chat_messages.id');
+		$this->db->from('wp_bp_chat_messages');
+		$this->db->where('wp_bp_chat_messages.channel_id = ', $channelId);
+		$this->db->where('wp_bp_chat_messages.status_message = ', 1);
+		$this->db->where('wp_bp_chat_messages.sender_id = ', $idApp);
+		$this->db->order_by('wp_bp_chat_messages.sent_at', 'DESC');
+		$this->db->limit(1);
+        return $this->db->get()->result();
+	}
+	
+	/**
 	 * inserta el mensaje del chat
 	 */
 	function InsertMessageOfChat($data){
@@ -165,6 +194,17 @@ Class api_db extends CI_MODEL
 		$this->db->select('wp_bp_chat_messages.sent_at, date(wp_bp_chat_messages.sent_at) as date');
 		$this->db->from('wp_bp_chat_messages');
 		$this->db->where('wp_bp_chat_messages.id = ', $id);
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 *
+	 */
+	public function getMessageRead($idMessage){
+		$this->db->select('wp_bp_chat_messages.id');
+		$this->db->from('wp_bp_chat_messages');
+		$this->db->where('wp_bp_chat_messages.id = ', $idMessage);
+		$this->db->where('wp_bp_chat_messages.status_message = ', 0);
         return $this->db->get()->result();
 	}
 	
@@ -235,6 +275,11 @@ Class api_db extends CI_MODEL
 		}else if($data['genM'] == 1 && $data['genH'] == 0 ){
 			$this->db->where('users.genero = ', "Mujer");
 		}
+		if($data['accommodation'] == "Sí" ){
+			$this->db->where('(users.alojamiento = "Sí" or users.alojamiento is null)');
+		}else{
+			$this->db->where('(users.alojamiento = "No" or users.alojamiento is null)');
+		}
 		$this->db->where("(users.edad is null or (users.edad >=" . $data['iniAge'] . " and users.edad <= " . $data['endAge'] . "))");
 		//$this->db->where('users.edad <= ', $data['endAge']);
 		//$this->db->where('users.edad <= ', $data['endAge']);
@@ -262,6 +307,46 @@ Class api_db extends CI_MODEL
 		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
 		$this->db->from('wp_bp_xprofile_fields');
 		$this->db->where('wp_bp_xprofile_fields.parent_id = 137 ');
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * obtiene la lista de deportes
+	 */
+	public function getSport(){
+		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
+		$this->db->from('wp_bp_xprofile_fields');
+		$this->db->where('wp_bp_xprofile_fields.parent_id = 353 ');
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * obtiene la lista de deportes
+	 */
+	public function getResidenceTime(){
+		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
+		$this->db->from('wp_bp_xprofile_fields');
+		$this->db->where('wp_bp_xprofile_fields.parent_id = 14 ');
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * obtiene la lista de deportes
+	 */
+	public function getRace(){
+		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
+		$this->db->from('wp_bp_xprofile_fields');
+		$this->db->where('wp_bp_xprofile_fields.parent_id = 125 ');
+        return $this->db->get()->result();
+	}
+	
+	/**
+	 * obtiene la lista de deportes
+	 */
+	public function getWorkArea(){
+		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
+		$this->db->from('wp_bp_xprofile_fields');
+		$this->db->where('wp_bp_xprofile_fields.parent_id = 214 ');
         return $this->db->get()->result();
 	}
 	
