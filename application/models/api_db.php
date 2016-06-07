@@ -33,10 +33,10 @@ Class api_db extends CI_MODEL
 	 * valida al usuario por correo o password
 	 */
 	public function validateUser($email, $pass){
-		$this->db->select('wp_users.ID as id, wp_users.user_email, wp_users.display_name');
+		$this->db->select('wp_users.ID as id, wp_users.user_email, wp_users.display_name, wp_users.user_pass');
 		$this->db->from('wp_users');
 		$this->db->where('wp_users.user_email = ', $email);
-		$this->db->where('wp_users.user_pass = ', $pass);
+		//$this->db->where('wp_users.user_pass = ', $pass);
         return $this->db->get()->result();
 	}
 	
@@ -48,6 +48,12 @@ Class api_db extends CI_MODEL
 		return $this->db->insert_id();
 	}
 	
+	/**
+	 * inserta un nuevo usuario
+	 */
+	public function insertActivity($data){
+		$this->db->insert_batch('wp_bp_activity', $data);
+	}
 	/**
 	 * inserta el identificador social
 	 */
@@ -86,9 +92,11 @@ Class api_db extends CI_MODEL
 	/**
 	 * obtenemos la lista de mensajes chats del usuario
 	 */
-	public function getListMessageChat($channelId,$id){
+	public function getListMessageChat($channelId,$id,$timeZone){
 		$this->db->select('wp_bp_chat_messages.id as idMessage, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.message, wp_bp_chat_messages.status_message');
-		$this->db->select('wp_bp_chat_messages.sender_id, wp_bp_chat_messages.sent_at, wp_bp_chat_messages.sent_at');
+		$this->db->select('wp_bp_chat_messages.sender_id');
+		$this->db->select('UNIX_TIMESTAMP(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as sent_at_unix', false);
+		$this->db->select('DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR ) as sent_at', false);
 		$this->db->select('(select count(*) from wp_bp_chat_messages where wp_bp_chat_messages.channel_id = ' . 
 			$channelId . ' and wp_bp_chat_messages.status_message = 0 and wp_bp_chat_messages.sender_id != ' . $id . ' ) as NoRead ');
 		$this->db->from('wp_bp_chat_messages');
@@ -144,10 +152,12 @@ Class api_db extends CI_MODEL
 	/**
 	 * obtenemos la lista de mensajes del canal
 	 */
-	public function getMessagesByChannel($channelId){
+	public function getMessagesByChannel($channelId, $timeZone){
 		$this->db->select('wp_bp_chat_messages.id, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.sender_id');
 		$this->db->select('wp_bp_chat_messages.message, wp_bp_chat_messages.status_message');
-		$this->db->select('wp_bp_chat_messages.sent_at, date(wp_bp_chat_messages.sent_at) as dateOnly');
+		$this->db->select('DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR ) as sent_at', false);
+		$this->db->select('UNIX_TIMESTAMP(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as sent_at_unix', false);
+		$this->db->select('date(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as dateOnly', false);
 		$this->db->from('wp_bp_chat_messages');
 		$this->db->where('wp_bp_chat_messages.channel_id = ', $channelId);
 		$this->db->order_by('wp_bp_chat_messages.sent_at', 'asc');
@@ -157,10 +167,12 @@ Class api_db extends CI_MODEL
 	/**
 	 * obtenemos la lista de mensajes del canal no leidos
 	 */
-	public function getMessagesByChannelNotRead($channelId, $idApp){
+	public function getMessagesByChannelNotRead($channelId, $idApp,$timeZone){
 		$this->db->select('wp_bp_chat_messages.id, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.sender_id');
 		$this->db->select('wp_bp_chat_messages.message, wp_bp_chat_messages.status_message');
-		$this->db->select('wp_bp_chat_messages.sent_at, date(wp_bp_chat_messages.sent_at) as dateOnly');
+		$this->db->select('DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR ) as sent_at', false);
+		$this->db->select('UNIX_TIMESTAMP(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as sent_at_unix', false);
+		$this->db->select('date(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as dateOnly', false);
 		$this->db->from('wp_bp_chat_messages');
 		$this->db->where('wp_bp_chat_messages.channel_id = ', $channelId);
 		$this->db->where('wp_bp_chat_messages.status_message = ', 0);
@@ -186,12 +198,14 @@ Class api_db extends CI_MODEL
 	/**
 	 * inserta el mensaje del chat
 	 */
-	function InsertMessageOfChat($data){
+	function InsertMessageOfChat($data,$timeZone){
 		$this->db->insert('wp_bp_chat_messages', $data);
 		$id = $this->db->insert_id();
 		
 		$this->db->select('wp_bp_chat_messages.id as idMessage, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.sender_id, wp_bp_chat_messages.message');
-		$this->db->select('wp_bp_chat_messages.sent_at, date(wp_bp_chat_messages.sent_at) as date');
+		$this->db->select('DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR ) as sent_at', false);
+		$this->db->select('UNIX_TIMESTAMP(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as sent_at_unix', false);
+		$this->db->select('date(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as date', false);
 		$this->db->from('wp_bp_chat_messages');
 		$this->db->where('wp_bp_chat_messages.id = ', $id);
         return $this->db->get()->result();
@@ -251,16 +265,16 @@ Class api_db extends CI_MODEL
 	/**
 	 * Obtiene los usuarios por ciudad
 	 */
-	function getUsersByCity($idCity,$idApp){
+	/*function getUsersByCity($idCity,$idApp){
         $this->db->from('users');
 		$this->db->where('users.id != ', $idApp);
 		return $this->db->get()->result();
-	}
+	}*/
 	
 	/**
 	 * Obtiene los usuarios por filtro
 	 */
-	function getUsersByFilter($idApp,$data){
+	function getUsersByFilter($idApp,$data,$limit){
         $this->db->from('users');
 		//condiciones
 		if($data['city'] != "0"){
@@ -271,9 +285,9 @@ Class api_db extends CI_MODEL
 			//$this->db->where('users.residencia = ', $data['iniDate']);
 		}
 		if($data['genH'] == 1 && $data['genM'] == 0 ){
-			$this->db->where('users.genero = ', "Hombre");
+			$this->db->where('(users.genero = "Hombre" or users.genero is null)');
 		}else if($data['genM'] == 1 && $data['genH'] == 0 ){
-			$this->db->where('users.genero = ', "Mujer");
+			$this->db->where('(users.genero = "Mujer" or users.genero is null)');
 		}
 		if($data['accommodation'] == "Sí" ){
 			$this->db->where('(users.alojamiento = "Sí" or users.alojamiento is null)');
@@ -284,9 +298,25 @@ Class api_db extends CI_MODEL
 		//$this->db->where('users.edad <= ', $data['endAge']);
 		//$this->db->where('users.edad <= ', $data['endAge']);
 		$this->db->where('users.id != ', $idApp);
-		
+		$this->db->limit(10, $limit);
 		return $this->db->get()->result();
 	}
+	
+	/**
+	 * Obtiene los usuarios por filtro
+	 */
+	function getUsersByCity($idApp,$data,$limit){
+        $this->db->from('users');
+		//condiciones
+		if($data['city'] != "0"){
+			//$this->db->where('users.residencia = ', "Cancún, Mexico");
+			$this->db->where('users.residencia = ', $data['city']);
+		}
+		$this->db->where('users.id != ', $idApp);
+		$this->db->limit(10, $limit);
+		return $this->db->get()->result();
+	}
+	
 	
 	/************** Pantalla PROFILE ******************/
 	

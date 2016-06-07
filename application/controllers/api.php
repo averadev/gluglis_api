@@ -17,14 +17,19 @@ class Api extends REST_Controller {
 
 	public function __construct() {
         parent::__construct();
+		error_reporting(E_ALL ^ (E_NOTICE | E_WARNING));
         $this->load->database('default');
         $this->load->model('api_db');
+		date_default_timezone_set('Etc/GMT0');
     }
 
 	public function index_get(){
-       // $this->load->view('web/vwApi');
-	   echo "";
+		/*$hoy = getdate();
+		$strHoy = $hoy["year"]."-".$hoy["mon"]."-".$hoy["mday"] . " " . $hoy["hours"] . ":" . $hoy["minutes"] . ":" . $hoy["seconds"];
+		echo $strHoy . "</br>";*/
+		
     }
+	
 	/************** Pantalla LOGIN ******************/
 	
 	/**
@@ -39,41 +44,67 @@ class Api extends REST_Controller {
 			//verifica si existe o no el usuario
 			$result = $this->api_db->getUser($this->get('email'),$this->get('pass'));
 			if(count($result) == 0){
+				$password = $this->decryptPass($this->get('pass'));
+				$password = $this->wp_hash_password($password);
 				$nameUser = "";
 				//verifica si existe la variableo le asigna vacio
 				if($this->get('name')){
 					$nameUser = $this->get('name');
 				}
 				$insert = array(
-					'user_login' 			=> $nameUser,
-					'user_pass' 			=> $this->get('pass'),
-					'user_nicename' 		=> $nameUser,
+					'user_login' 			=> $this->get('userLogin'),
+					'user_pass' 			=> $password,
+					'user_nicename' 		=> $this->get('userLogin'),
 					'user_email' 			=> $this->get('email'),
 					'user_url' 				=> '',
 					'user_registered' 		=> $strHoy,
 					'user_activation_key' 	=> '',
-					'user_status' 			=> '2',
+					'user_status' 			=> '0',
 					'display_name' 			=> $nameUser,
 					'playerId'				=> $this->get('playerId'),
 				);
 				//inserta los datos de usuario normales
 				$id = $this->api_db->insertUser($insert);
+				
+				$insertAct = array();
+				$activityType = array("last_activity", "new_member");
+				$activityAction= array("", '<a href="http://www.gluglis.travel/members/"'. $this->get('userLogin') . '/" title="'.$nameUser.'">'.$nameUser.'</a> ahora es un usuario registrado');
+				$activityLink = array("", "http://www.gluglis.travel/members/" . $this->get('userLogin'));
+				for($i=0;$i<2;$i++){
+					$dataInsert = array(
+						'user_id' 				=> $id,
+						'component' 			=> $activityType[$i],
+						'type' 					=> $activityAction[$i],
+						'action' 				=> $activityLink[$i],
+						'content' 				=> "",
+						'primary_link' 			=> "",
+						'item_id'			 	=> '0',
+						'secondary_item_id' 	=> '0',
+						'date_recorded' 		=> $strHoy
+					);
+					array_push($insertAct,$dataInsert);
+				}
+				$this->api_db->insertActivity($insertAct);
+
+				
 				//verifica si existe el parametro de genero
 				if($this->get('gender')){
 					$gen = "";
 					if($this->get('gender') == "Male" || $this->get('gender') == "male"){
 						$gen = "Hombre";
-					}else{
+					}else if($this->get('gender') == "Female" || $this->get('gender') == "female"){
 						$gen = "Mujer";
 					}
-					$gender = array(
-						'field_id' 			=> 3,
-						'user_id' 			=> $id,
-						'value' 			=> $gen,
-						'last_updated' 		=> $strHoy,
-					);
-					//inserta el genero del usuario
-					$this->api_db->insertXProfileData($gender);
+					if($gen != ""){
+						$gender = array(
+							'field_id' 			=> 3,
+							'user_id' 			=> $id,
+							'value' 			=> $gen,
+							'last_updated' 		=> $strHoy,
+						);
+						//inserta el genero del usuario
+						$this->api_db->insertXProfileData($gender);
+					}
 				}
 				
 				if($this->get('birthday')){
@@ -150,6 +181,24 @@ class Api extends REST_Controller {
         $this->response($message, 200);
 	}
 	
+	//
+	public function validatePass_get($source){
+		$message = $this->verifyIsSet(array('idApp'));
+		if ($message == null) {
+			//verifica si existe o no el usuario
+			$pass = 'key';
+			$method = 'aes-256-cbc';
+			$decrypted = openssl_decrypt ( html_entity_decode($this->get('source')), $method, $pass );
+			if($decrypted != false){
+				$message = array( 'success' => true, 'message' => $decrypted );
+			}else{
+				$message = array( 'success' => false, 'message' => $decrypted );
+			}
+        }
+        $this->response($message, 200);
+	}
+	
+	
 	/**
 	 * valida el inicio de secion
 	 */
@@ -157,23 +206,56 @@ class Api extends REST_Controller {
 		$message = $this->verifyIsSet(array('idApp'));
 		if ($message == null) {
 			//verifica si existe o no el usuario
-			
-			if( $this->get('email') && $this->get('password') ){
-				$result = $this->api_db->validateUser($this->get('email'),$this->get('password'));
-				if(count($result) > 0){
-					$this->api_db->updatePlayerId($result[0]->id, $this->get('playerId'));
-					$message = array( 'success' => true, 'message' => "Usuario correcto", 'item' => $result );
+			$password = $this->decryptPass($this->get('password'));
+			if($password != false){
+				if( $this->get('email') && $this->get('password') ){
+					require_once( 'class-phpass.php');
+					$result = $this->api_db->validateUser($this->get('email'),$this->get('password'));
+					$wp_hasher = new PasswordHash(8, TRUE);
+					if(count($result) > 0){
+						if($wp_hasher->CheckPassword($password, $result[0]->user_pass)) {
+							$this->api_db->updatePlayerId($result[0]->id, $this->get('playerId'));
+							$message = array( 'success' => true, 'message' => "Usuario correcto", 'item' => $result );
+						} else {
+							$message = array( 'success' => false, 'message' => "Usuario no encontrado" );
+						}
+					}else{
+						$message = array( 'success' => false, 'message' => "Usuario no encontrado" );
+					}
 				}else{
 					$message = array( 'success' => false, 'message' => "Usuario no encontrado" );
 				}
 			}else{
 				$message = array( 'success' => false, 'message' => "Usuario no encontrado" );
 			}
-			
-			/**/
-			
         }
         $this->response($message, 200);
+	}
+	
+	//
+	private function decryptPass($source){
+		//verifica si existe o no el usuario
+		$pass = 'key';
+		$method = 'aes-256-cbc';
+		$decrypted = openssl_decrypt ( html_entity_decode($source), $method, $pass );
+		if($decrypted != false){
+			return $decrypted;
+		}else{
+			return false;
+		}
+	}
+	
+	//
+	private function wp_hash_password($password) {
+		global $wp_hasher;
+ 
+		if ( empty($wp_hasher) ) {
+			require_once( 'class-phpass.php');
+			// By default, use the portable hash from phpass
+			$wp_hasher = new PasswordHash(8, true);
+		}
+ 
+		return $wp_hasher->HashPassword( trim( $password ) );
 	}
 	
 	/************** Pantalla MESSAGES ******************/
@@ -184,31 +266,68 @@ class Api extends REST_Controller {
 	public function getListMessageChat_get(){
 		$message = $this->verifyIsSet(array('idApp'));
 		if ($message == null) {
+			if($this->get('timeZone')<0){
+				$timeZone = substr($this->get('timeZone'), 0, 3);
+			}else{
+				if(substr($this->get('timeZone'),0,1) == "+"){
+					$timeZone = substr($this->get('timeZone'), 1, 2);
+				}else{
+					$timeZone = substr($this->get('timeZone'), 0, 2);
+				}
+			}
+			$timeZone = intval($timeZone);
             $channel = $this->api_db->getChannelsById($this->get('idApp'));
 			$chats = array();
 			foreach($channel as $item){
-				$result = $this->api_db->getListMessageChat($item->channel_id,$this->get('idApp'));
+				$result = $this->api_db->getListMessageChat($item->channel_id,$this->get('idApp'),$timeZone);
 				if(count($result) > 0){
 					$user = $this->api_db->getUserChat($item->channel_id,$this->get('idApp'));
-					$result[0]->id = $user[0]->idUSer;
-					$result[0]->display_name = $user[0]->display_name;
-					$result[0]->blockYour = $user[0]->status;
-					$result[0]->blockMe = $item->status;
-					$result[0]->image = $result[0]->id . ".png";
-					$result[0]->type = $user[0]->type;
-					$result[0]->identifier = $user[0]->identifier;
-					$array2 = json_decode(json_encode($result[0]),true);
-					array_push($chats, $array2);
+					if(count($user) > 0){
+						$result[0]->id = $user[0]->idUSer;
+						$result[0]->display_name = $user[0]->display_name;
+						$result[0]->blockYour = $user[0]->status;
+						$result[0]->blockMe = $item->status;
+						$result[0]->image = $result[0]->id . ".png";
+						$result[0]->type = $user[0]->type;
+						$result[0]->identifier = $user[0]->identifier;
+						$result[0]->image2 = $result[0]->image;
+						$imgAvatar = get_avatar( $result[0]->id );
+						$avatar = $this->extraerSRC($imgAvatar);
+						if($avatar){
+							//$item->image2 = $avatar;
+							$file = $avatar;
+							$file_headers = @get_headers($file);
+							if($file_headers[0] == 'HTTP/1.1 404 Not Found') {
+								$result[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+							}else {
+								$mystring = $avatar;
+								$findme   = 'www.gravatar.com';
+								$pos = strpos($mystring, $findme);
+								if ($pos === false) {
+									$result[0]->image2 = $avatar;
+								}else{
+									$result[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+								}
+								
+							}
+						}else{
+							$result[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+						}
+						$array2 = json_decode(json_encode($result[0]),true);
+						array_push($chats, $array2);
+					}
 				}
 			}
+			//date_default_timezone_set('America/Los_Angeles');
+
 			usort($chats, array($this, "ordenar")); 
-			$message = array('success' => true, 'items' => $chats );
+			$message = array('success' => true, 'items' => $chats);
         }
         $this->response($message, 200);
 	}
 	
 	public function ordenar($a, $b) {
-		return strtotime($b['sent_at']) - strtotime($a['sent_at']);
+		return ($b['sent_at_unix']) - ($a['sent_at_unix']);
 	}
 	
 	/************** Pantalla MESSAGE ******************/
@@ -222,7 +341,17 @@ class Api extends REST_Controller {
 			$months = array('', 'Enero','Febrero','Marzo','Abril','Mayo','Junio',
 			'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre');
 			$dias = array('Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo');
-            $messages = $this->api_db->getMessagesByChannel($this->get('channelId'));
+			if($this->get('timeZone')<0){
+				$timeZone = substr($this->get('timeZone'), 0, 3);
+			}else{
+				if(substr($this->get('timeZone'),0,1) == "+"){
+					$timeZone = substr($this->get('timeZone'), 1, 2);
+				}else{
+					$timeZone = substr($this->get('timeZone'), 0, 2);
+				}
+			}
+			$timeZone = intval($timeZone);
+            $messages = $this->api_db->getMessagesByChannel($this->get('channelId'),$timeZone);
 			$dateBefore = "";
 			foreach($messages as $item){
 				if($item->sender_id == $this->get('idApp')){
@@ -230,11 +359,10 @@ class Api extends REST_Controller {
 				}else{
 					$item->isMe = false;
 				}
-				$fechaD = $dias[date('N', strtotime($item->sent_at)) - 1];
-				$item->dia = $fechaD;
-				$item->fechaFormat = date('d', strtotime($item->sent_at)) . ' de ' . 
-					$months[date('n', strtotime($item->sent_at))] . ' del ' . 
-					date('Y', strtotime($item->sent_at));
+				$item->dia = $dias[date('N',($item->sent_at_unix)) - 1];
+				$item->fechaFormat = date('d', ($item->sent_at_unix)) . ' de ' . 
+					$months[date('n', ($item->sent_at_unix))] . ' del ' . 
+					date('Y', ($item->sent_at_unix));
 				$date = date_create($item->sent_at);
 				$item->hora = date_format($date, 'g:i A');
 				if($dateBefore != $item->dateOnly){
@@ -255,16 +383,28 @@ class Api extends REST_Controller {
 	public function saveChat_get(){
 		$message = $this->verifyIsSet(array('idApp'));
 		if ($message == null) {
+			if($this->get('timeZone')<0){
+				$timeZone = substr($this->get('timeZone'), 0, 3);
+			}else{
+				if(substr($this->get('timeZone'),0,1) == "+"){
+					$timeZone = substr($this->get('timeZone'), 1, 2);
+				}else{
+					$timeZone = substr($this->get('timeZone'), 0, 2);
+				}
+			}
+			$timeZone = intval($timeZone);
 			$months = array('', 'Enero','Febrero','Marzo','Abril','Mayo','Junio',
 				'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre');
 			$dias = array('Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo');
+			$hoy = getdate();
+			$strHoy = $hoy["year"]."-".$hoy["mon"]."-".$hoy["mday"] . " " . $hoy["hours"] . ":" . $hoy["minutes"] . ":" . $hoy["seconds"];
 			$insert = array(
 				'sender_id' 	=> $this->get('idApp'),
 				'channel_id' 	=> $this->get('channelId'),
-				'message' 		=> $this->get('message')
-				//'sent_at'			=> $this->get('dateM')
+				'message' 		=> html_entity_decode($this->get('message')),
+				'sent_at'			=> $strHoy
 			);
-            $chat = $this->api_db->InsertMessageOfChat($insert); //inserta el mensaje del chats
+            $chat = $this->api_db->InsertMessageOfChat($insert,$timeZone); //inserta el mensaje del chats
 			$user = $this->api_db->getUserChat($this->get('channelId'),$this->get('idApp')); //obtiene los datos del otro usuario
 			$user2 = $this->api_db->getUserChatById($this->get('channelId') ,$this->get('idApp')); // obtiene el status del usuario
 			$noRead = $this->api_db->getChatNoReadById($this->get('channelId'),$this->get('idApp')); //obtiene los mensajes no leidos
@@ -274,9 +414,9 @@ class Api extends REST_Controller {
 			foreach($chat as $item){
 				$date = date_create($item->sent_at);
 				$item->hora = date_format($date, 'g:i A');
-				$item->fechaFormat = date('d', strtotime($item->sent_at)) . ' de ' . 
-					$months[date('n', strtotime($item->sent_at))] . ' del ' . 
-					date('Y', strtotime($item->sent_at));
+				$item->fechaFormat = date('d', ($item->sent_at_unix)) . ' de ' . 
+					$months[date('n', ($item->sent_at_unix))] . ' del ' . 
+					date('Y', ($item->sent_at_unix));
 				$item->id = $user[0]->idUSer;
 				$item->display_name = $user[0]->display_name;
 				$item->NoRead = $noRead[0]->NoRead;
@@ -286,19 +426,43 @@ class Api extends REST_Controller {
 				$item->type = $user[0]->type;
 				$item->identifier = $user[0]->identifier;
 				$total = strlen($this->get('message'));
-				$messa = $this->get('message');
+				$messa = html_entity_decode($this->get('message'));
 				if($total > 35){
 					$messa = substr($messa, 0, 35) . "..."; 
 				}
-				//$isRead = $this->api_db->getMessageRead($chat[0]->idMessage); //comprueba que el mensaje no este leido
-				//if($isRead > 0){
+				$item->image2 = $item->image;
+				$imgAvatar = get_avatar( $item->id );
+				$avatar = $this->extraerSRC($imgAvatar);
+				if($avatar){
+					//$item->image2 = $avatar;
+					$file = $avatar;
+					$file_headers = @get_headers($file);
+					if($file_headers[0] == 'HTTP/1.1 404 Not Found') {
+						$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+					}else {
+						$mystring = $avatar;
+						$findme   = 'www.gravatar.com';
+						$pos = strpos($mystring, $findme);
+						if ($pos === false) {
+							$item->image2 = $avatar;
+						}else{
+							$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+						}
+						
+					}
+				}else{
+					$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+				}
+				usleep(100000);
+				$isRead = $this->api_db->getMessageRead($chat[0]->idMessage); //comprueba que el mensaje no este leido
+				if($isRead > 0){
 					$messa = $user2[0]->display_name . " : " . $messa;
 					if($user[0]->playerId != '0' || $user[0]->playerId != 0){
 						$this->SendNotificationPush($user[0]->playerId,json_encode($chat),"1", $messa);
 					}
-				//}
+				}
 			}
-			
+			//$timeZone = intval($this->get('timeZone'));
 			$message = array('success' => true, 'items' => $chat );
         }
         $this->response($message, 200);
@@ -310,7 +474,17 @@ class Api extends REST_Controller {
 			$months = array('', 'Enero','Febrero','Marzo','Abril','Mayo','Junio',
 			'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre');
 			$dias = array('Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo');
-            $messages = $this->api_db->getMessagesByChannelNotRead($this->get('channelId'),$this->get('idApp'));
+			if($this->get('timeZone')<0){
+				$timeZone = substr($this->get('timeZone'), 0, 3);
+			}else{
+				if(substr($this->get('timeZone'),0,1) == "+"){
+					$timeZone = substr($this->get('timeZone'), 1, 2);
+				}else{
+					$timeZone = substr($this->get('timeZone'), 0, 2);
+				}
+			}
+			$timeZone = intval($timeZone);
+            $messages = $this->api_db->getMessagesByChannelNotRead($this->get('channelId'),$this->get('idApp'),$timeZone);
 			$lastRead = $this->api_db->getLastMessageRead($this->get('channelId'),$this->get('idApp'));
 			if(count($lastRead) > 0){
 				$lastRead = $lastRead[0]->id;
@@ -324,11 +498,11 @@ class Api extends REST_Controller {
 				}else{
 					$item->isMe = false;
 				}
-				$fechaD = $dias[date('N', strtotime($item->sent_at)) - 1];
+				$fechaD = $dias[date('N', ($item->sent_at_unix)) - 1];
 				$item->dia = $fechaD;
-				$item->fechaFormat = date('d', strtotime($item->sent_at)) . ' de ' . 
-					$months[date('n', strtotime($item->sent_at))] . ' del ' . 
-					date('Y', strtotime($item->sent_at));
+				$item->fechaFormat = date('d', ($item->sent_at_unix)) . ' de ' . 
+					$months[date('n', ($item->sent_at_unix))] . ' del ' . 
+					date('Y', ($item->sent_at_unix));
 				$date = date_create($item->sent_at);
 				$item->hora = date_format($date, 'g:i A');
 				if($dateBefore != $item->dateOnly){
@@ -392,7 +566,31 @@ class Api extends REST_Controller {
             $item->idiomas = unserialize($item->idiomas);
             $item->hobbies = unserialize($item->hobbies);
 			$item->deportes = unserialize($item->deportes);
-        }
+			$item->image2 = $item->image;
+			$imgAvatar = get_avatar( $item->id );
+			$avatar = $this->extraerSRC($imgAvatar);
+			if($avatar){
+					//$item->image2 = $avatar;
+					$file = $avatar;
+					$file_headers = @get_headers($file);
+					if($file_headers[0] == 'HTTP/1.1 404 Not Found') {
+						$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+					}else {
+						$mystring = $avatar;
+						$findme   = 'www.gravatar.com';
+						$pos = strpos($mystring, $findme);
+						if ($pos === false) {
+							$item->image2 = $avatar;
+						}else{
+							$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+						}
+						
+					}
+				}else{
+					$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+				}
+				//$item->patch = base_url();
+			}
         $message = array('success' => true, 'items' => $items );
         $this->response($message, 200);
 	}
@@ -401,13 +599,45 @@ class Api extends REST_Controller {
 	 * Obtiene los usuarios por ciudad
 	 */
 	public function getUsersByCity_get(){
-		$items = $this->api_db->getUsersByCity($this->get('idCity'),$this->get('idApp'));
+		$data = array(
+			'city' 				=> $this->get('city'),
+		);
+		$items = $this->api_db->getUsersByCity($this->get('idApp'),$data,$this->get('limit'));
+		
         foreach($items as $item){
             $item->idiomas = unserialize($item->idiomas);
             $item->hobbies = unserialize($item->hobbies);
 			$item->deportes = unserialize($item->deportes);
+			$item->cuentaPropia = unserialize($item->cuentaPropia);
+			$item->image2 = $item->image;
+			$imgAvatar = get_avatar( $item->id );
+			$avatar = $this->extraerSRC($imgAvatar);
+			if($avatar){
+				//$item->image2 = $avatar;
+				$file = $avatar;
+				$file_headers = @get_headers($file);
+				if($file_headers[0] == 'HTTP/1.1 404 Not Found') {
+					$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+				}else {
+					$mystring = $avatar;
+					$findme   = 'www.gravatar.com';
+					$pos = strpos($mystring, $findme);
+					if ($pos === false) {
+						$item->image2 = $avatar;
+					}else{
+						$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+					}
+				}
+			}else{
+				$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+			}
         }
-        $message = array('success' => true, 'items' => $items );
+		if(count($items) > 0){
+			$message = array('success' => true, 'items' => $items );
+		}else{
+			$message = array('success' => false, 'message' => "No se encontraron usuarios" );
+		}
+        
         $this->response($message, 200);
 	}
 	
@@ -425,11 +655,36 @@ class Api extends REST_Controller {
 			'endAge'			=> $this->get('endAge'),
 			'accommodation'		=> $this->get('accommodation')
 		);
-		$items = $this->api_db->getUsersByFilter($this->get('idApp'),$data);
+		$items = $this->api_db->getUsersByFilter($this->get('idApp'),$data,$this->get('limit'));
+		
         foreach($items as $item){
             $item->idiomas = unserialize($item->idiomas);
             $item->hobbies = unserialize($item->hobbies);
 			$item->deportes = unserialize($item->deportes);
+			$item->cuentaPropia = unserialize($item->cuentaPropia);
+			$item->image2 = $item->image;
+			$imgAvatar = get_avatar( $item->id );
+			$avatar = $this->extraerSRC($imgAvatar);
+			if($avatar){
+				//$item->image2 = $avatar;
+				$file = $avatar;
+				$file_headers = @get_headers($file);
+				if($file_headers[0] == 'HTTP/1.1 404 Not Found') {
+					$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+				}else {
+					$mystring = $avatar;
+					$findme   = 'www.gravatar.com';
+					$pos = strpos($mystring, $findme);
+					if ($pos === false) {
+						$item->image2 = $avatar;
+					}else{
+						$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+					}
+					
+				}
+			}else{
+				$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+			}
         }
 		if(count($items) > 0){
 			$message = array('success' => true, 'items' => $items );
@@ -538,6 +793,29 @@ class Api extends REST_Controller {
 			$user[0]->blockMe = $result[0]->status;
 			$user[0]->image = $user[0]->idUSer . ".png";
 			$user[0]->id = $user[0]->idUSer;
+			$user[0]->image2 = $user[0]->image;
+			$imgAvatar = get_avatar( $user[0]->id );
+			$avatar = $this->extraerSRC($imgAvatar);
+			if($avatar){
+				//$item->image2 = $avatar;
+				$file = $avatar;
+				$file_headers = @get_headers($file);
+				if($file_headers[0] == 'HTTP/1.1 404 Not Found') {
+					$user[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+				}else {
+					$mystring = $avatar;
+					$findme   = 'www.gravatar.com';
+					$pos = strpos($mystring, $findme);
+					if ($pos === false) {
+						$user[0]->image2 = $avatar;
+					}else{
+						$user[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+					}
+					
+				}
+			}else{
+				$user[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
+			}
 			
 			$message = array('success' => true, 'thereChannel' => $thereChannel, 'item' => $user[0]);
         }
@@ -1020,6 +1298,15 @@ class Api extends REST_Controller {
 		}
 		return null;
     }
+	
+	/**
+     *  obtiene solamente la dirrecion de la imagen
+     */
+	private function extraerSRC($cadena) {
+		preg_match('@src="([^"]+)"@', $cadena, $array);
+		$src = array_pop($array);
+		return $src;
+	}
 	
 	/**
 	 * Funcion para enviar notificaciones
