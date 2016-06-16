@@ -274,6 +274,31 @@ Class api_db extends CI_MODEL
 	/**
 	 * Obtiene los usuarios por filtro
 	 */
+	function getCountUsersByFilter($idApp,$data){
+        $this->db->select('count(*) as total');
+        $this->db->from('users');
+		//condiciones
+		if($data['city'] != "0"){
+			$this->db->where('users.residencia = ', $data['city']);
+		}
+		if($data['genH'] == 1 && $data['genM'] == 0 ){
+			$this->db->where('(users.genero = "Hombre" or users.genero is null)');
+		}else if($data['genM'] == 1 && $data['genH'] == 0 ){
+			$this->db->where('(users.genero = "Mujer" or users.genero is null)');
+		}
+		if($data['accommodation'] == "Sí" ){
+			$this->db->where('(users.alojamiento = "Sí" or users.alojamiento is null)');
+		}else{
+			$this->db->where('(users.alojamiento = "No" or users.alojamiento is null)');
+		}
+		$this->db->where("(users.edad is null or (users.edad >=" . $data['iniAge'] . " and users.edad <= " . $data['endAge'] . "))");
+		$this->db->where('users.id != ', $idApp);
+		return $this->db->get()->result();
+	}
+	
+	/**
+	 * Obtiene los usuarios por filtro
+	 */
 	function getUsersByFilter($idApp,$data,$limit){
         $this->db->from('users');
 		//condiciones
@@ -305,15 +330,27 @@ Class api_db extends CI_MODEL
 	/**
 	 * Obtiene los usuarios por filtro
 	 */
+	function getCountUsersByCity($idApp,$data){
+        $this->db->select('count(*) as total');
+        $this->db->from('users');
+		if($data['city'] != "0"){
+			$this->db->where('users.residencia = ', $data['city']);
+		}
+		$this->db->where('users.id != ', $idApp);
+		return $this->db->get()->result();
+	}
+	
+	/**
+	 * Obtiene los usuarios por filtro
+	 */
 	function getUsersByCity($idApp,$data,$limit){
         $this->db->from('users');
 		//condiciones
 		if($data['city'] != "0"){
-			//$this->db->where('users.residencia = ', "Cancún, Mexico");
 			$this->db->where('users.residencia = ', $data['city']);
 		}
 		$this->db->where('users.id != ', $idApp);
-		$this->db->limit(10, $limit);
+		$this->db->limit(5, $limit);
 		return $this->db->get()->result();
 	}
 	

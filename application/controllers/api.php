@@ -602,6 +602,7 @@ class Api extends REST_Controller {
 		$data = array(
 			'city' 				=> $this->get('city'),
 		);
+        $total = $this->api_db->getCountUsersByCity($this->get('idApp'),$data)[0]->total;
 		$items = $this->api_db->getUsersByCity($this->get('idApp'),$data,$this->get('limit'));
 		
         foreach($items as $item){
@@ -610,7 +611,7 @@ class Api extends REST_Controller {
 			$item->deportes = unserialize($item->deportes);
 			$item->cuentaPropia = unserialize($item->cuentaPropia);
 			$item->image2 = $item->image;
-			$imgAvatar = get_avatar( $item->id );
+            $imgAvatar = get_avatar( $item->id );
 			$avatar = $this->extraerSRC($imgAvatar);
 			if($avatar){
 				//$item->image2 = $avatar;
@@ -633,7 +634,7 @@ class Api extends REST_Controller {
 			}
         }
 		if(count($items) > 0){
-			$message = array('success' => true, 'items' => $items );
+			$message = array('success' => true, 'total' => $total, 'items' => $items );
 		}else{
 			$message = array('success' => false, 'message' => "No se encontraron usuarios" );
 		}
@@ -655,6 +656,7 @@ class Api extends REST_Controller {
 			'endAge'			=> $this->get('endAge'),
 			'accommodation'		=> $this->get('accommodation')
 		);
+        $total = $this->api_db->getCountUsersByFilter($this->get('idApp'),$data)[0]->total;
 		$items = $this->api_db->getUsersByFilter($this->get('idApp'),$data,$this->get('limit'));
 		
         foreach($items as $item){
@@ -687,7 +689,7 @@ class Api extends REST_Controller {
 			}
         }
 		if(count($items) > 0){
-			$message = array('success' => true, 'items' => $items );
+			$message = array('success' => true, 'total' => $total, 'items' => $items );
 		}else{
 			$message = array('success' => false, 'message' => "No se encontraron usuarios" );
 		}
