@@ -139,7 +139,7 @@ class Api extends REST_Controller {
 					//inserta los datos de facebook
 					$this->api_db->insertSocialUser($insert2);
 				}
-				$message = array('success' => true, 'message' => "Usuario registrado", 'idApp' => $id );
+				$message = array('success' => true, 'message' => "Usuario registrado", 'idApp' => $id, 'SignUp' => true );
 			}else{
 				$id = $result[0]->id;
 				if($this->get('facebookId')){
@@ -172,9 +172,9 @@ class Api extends REST_Controller {
 						}
 					}
 					$this->api_db->updatePlayerId($id, $this->get('playerId'));
-					$message = array('success' => true, 'message' => "Usuario registrado", 'idApp' => $id );
+					$message = array('success' => true, 'message' => "Usuario registrado", 'idApp' => $id, 'SignUp' => false );
 				}else{
-					$message = array('success' => false, 'message' => "Usuario existente, intente con otro correo", 'idApp' => $id );
+					$message = array('success' => false, 'message' => "Usuario existente, intente con otro correo", 'idApp' => $id, 'SignUp' => false );
 				}
 			}
         }
