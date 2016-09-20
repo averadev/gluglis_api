@@ -1288,6 +1288,42 @@ class Api extends REST_Controller {
         $this->response($message, 200);
 	}
 	
+	/**
+	 * guarda los datos del usuario
+	 */
+	public function saveLocationProfile_get(){
+		$message = $this->verifyIsSet(array('idApp'));
+		if ($message == null) {
+			//obtiene la fecha actual
+			$hoy = getdate();
+			$strHoy = $hoy["year"]."-".$hoy["mon"]."-".$hoy["mday"] . " " . $hoy["hours"] . ":" . $hoy["minutes"] . ":" . $hoy["seconds"];
+			
+			//residencia
+			$residence = "";
+			if($this->get('residence')){
+				$residence = $this->get('residence');
+			}	
+			//carga los datos de la residencia
+			$updateXdata = array(
+				'field_id' 			=> 11,
+				'user_id' 			=> $this->get('idApp'),
+				'value' 			=> $residence,
+				'last_updated' 		=> $strHoy,
+			);
+			//verifica si existe ya el campo en la bd
+			$result = $this->api_db->getXprofileData($this->get('idApp'), 11);
+			//inserta o actualiza los datos dependiendo si existe o no
+			if(count($result) > 0){
+				$this->api_db->updateXProfileData($updateXdata);
+			}else{
+				$this->api_db->insertXProfileData($updateXdata);
+			}
+			
+			$message = array('success' => true, 'message' => "Los cambios a tu perfil han sido almacenados." );
+        }
+        $this->response($message, 200);
+	}
+	
 	/************** metodo generico ******************/
 	
 	/**
