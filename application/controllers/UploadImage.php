@@ -118,7 +118,7 @@ class UploadImage extends CI_Controller {
 						chmod("assets/img/avatar/" . $filename, 0644);
 						
 						$update = array(
-							'ID'			=> 1183,
+							'ID'			=> $file[0],
 							'imagen'		=> $filename,
 						);
 						$this->api_db->updateProfile($update);

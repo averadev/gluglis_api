@@ -79,9 +79,12 @@ class Api extends REST_Controller {
 					'user_status' 			=> '1',
 					'display_name' 			=> $nameUser,
 					'playerId'				=> $this->get('playerId'),
+					'imagen' 				=> 'avatar.png',
 				);
 				//inserta los datos de usuario normales
 				$id = $this->api_db->insertUser($insert);
+				
+				$this->api_db->updateAvatarCreate($id, $id . ".png");
 				
 				$insertAct = array();
 				$activityType = array("last_activity", "new_member");
@@ -156,6 +159,21 @@ class Api extends REST_Controller {
 					//inserta los datos de facebook
 					$this->api_db->insertSocialUser($insert2);
 				}
+				
+				$field = array( 112, 115, 118, 121 );
+				
+				//inserta los campos de fumar, beber, psicotropicos y mascotas a no
+				for( $i = 0; $i < count( $field ); $i++ ){
+					$insert = array(
+						'field_id' 			=> $field[$i],
+						'user_id' 			=> $id,
+						'value' 			=> 'No',
+						'last_updated' 		=> $strHoy,
+					);
+					//inserta la fecha de nacimiento del usuario
+					$this->api_db->insertXProfileData($insert);
+				}
+				
 				$message = array('success' => true, 'message' => $language['registeredUser'], 'idApp' => $id, 'SignUp' => true );
 			}else{
 				$id = $result[0]->id;
@@ -304,16 +322,16 @@ class Api extends REST_Controller {
 			$chats = array();
 			foreach($channel as $item){
 				$result = $this->api_db->getListMessageChat($item->channel_id,$this->get('idApp'),$timeZone);
-				
 				if(count($result) > 0){
 					$user = $this->api_db->getUserChat($item->channel_id,$this->get('idApp'));
 					if(count($user) > 0){
+						$result[0]->message = utf8_encode( $result[0]->message );
 						$result[0]->message = utf8_decode( $result[0]->message );
 						$result[0]->id = $user[0]->idUSer;
 						$result[0]->display_name = $user[0]->display_name;
 						$result[0]->blockYour = $user[0]->status;
 						$result[0]->blockMe = $item->status;
-						$result[0]->image = $result[0]->id . ".png";
+						$result[0]->image = $user[0]->imagen;
 						$result[0]->type = $user[0]->type;
 						$result[0]->identifier = $user[0]->identifier;
 						$result[0]->image2 = $result[0]->image;
@@ -327,29 +345,6 @@ class Api extends REST_Controller {
 							$result[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
 						}
 						
-						/*$imgAvatar = get_avatar( $result[0]->id );
-						$avatar = $this->extraerSRC($imgAvatar);*/
-						/*$avatar = false;
-						if($avatar){
-							//$item->image2 = $avatar;
-							$file = $avatar;
-							$file_headers = @get_headers($file);
-							if($file_headers[0] == 'HTTP/1.1 404 Not Found') {
-								$result[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-							}else {
-								$mystring = $avatar;
-								$findme   = 'www.gravatar.com';
-								$pos = strpos($mystring, $findme);
-								if ($pos === false) {
-									$result[0]->image2 = $avatar;
-								}else{
-									$result[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-								}
-								
-							}
-						}else{
-							$result[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-						}*/
 						$array2 = json_decode(json_encode($result[0]),true);
 						array_push($chats, $array2);
 					}
@@ -418,10 +413,11 @@ class Api extends REST_Controller {
 				}
 				$dateBefore = $item->dateOnly;
 				//$item->message = utf8_decode( $item->message );
+				$item->message = utf8_encode( $item->message );
 				$item->message = utf8_decode( $item->message );
-				if( $item->message == "ðŸ˜„"){
+				/*if( $item->message == "ðŸ˜„"){
 					$item->message = ":)";
-				}
+				}*/
 			}
 			$message = array('success' => true, 'items' => $messages );
         }
@@ -461,6 +457,18 @@ class Api extends REST_Controller {
 			$noRead = $this->api_db->getChatNoReadById($this->get('channelId'),$this->get('idApp')); //obtiene los mensajes no leidos
 			
 			$this->api_db->updateLastMessage($chat[0]->sent_at,$chat[0]->channel_id); //actualiza el tiempo del ultimo mensaje enviado en canal
+			
+			$channel = $this->api_db->getChannelsById($user[0]->idUSer);
+			$totalNoRead = 0;
+			foreach($channel as $item){
+				$result = $this->api_db->getListMessageChatUnread($item->channel_id,$user[0]->idUSer);
+				if(count($result) > 0){
+					if($result[0]->NoRead > 0){
+						$totalNoRead++;
+					}
+					//$array2 = json_decode(json_encode($result[0]),true);
+				}
+			}
 		
 			foreach($chat as $item){
 				$date = date_create($item->sent_at);
@@ -475,6 +483,7 @@ class Api extends REST_Controller {
 				$item->blockYour = $user[0]->status;
 				$item->blockMe = $user2[0]->status;
 				$item->image = $item->id . ".png";
+				$item->totalNoRead = $totalNoRead;
 				$item->type = $user[0]->type;
 				$item->identifier = $user[0]->identifier;
 				$total = strlen($this->get('message'));
@@ -493,29 +502,6 @@ class Api extends REST_Controller {
 					$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
 				}
 				
-				/*$imgAvatar = get_avatar( $item->id );
-				$avatar = $this->extraerSRC($imgAvatar);*/
-				/*$avatar = false;
-				if($avatar){
-					//$item->image2 = $avatar;
-					$file = $avatar;
-					$file_headers = @get_headers($file);
-					if($file_headers[0] == 'HTTP/1.1 404 Not Found') {
-						$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-					}else {
-						$mystring = $avatar;
-						$findme   = 'www.gravatar.com';
-						$pos = strpos($mystring, $findme);
-						if ($pos === false) {
-							$item->image2 = $avatar;
-						}else{
-							$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-						}
-						
-					}
-				}else{
-					$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-				}*/
 				usleep(100000);
 				$isRead = $this->api_db->getMessageRead($chat[0]->idMessage); //comprueba que el mensaje no este leido
 				if($isRead > 0){
@@ -561,6 +547,18 @@ class Api extends REST_Controller {
 			$noRead = $this->api_db->getChatNoReadById($this->post('channelId'),$this->post('idApp')); //obtiene los mensajes no leidos
 			
 			$this->api_db->updateLastMessage($chat[0]->sent_at,$chat[0]->channel_id); //actualiza el tiempo del ultimo mensaje enviado en canal
+			
+			//obtiene los mensajes no leidos para mostrarlos en el icono de la aplicacion
+			$channel = $this->api_db->getChannelsById($user[0]->idUSer);
+			$totalNoRead = 0;
+			foreach($channel as $item){
+				$result = $this->api_db->getListMessageChatUnread($item->channel_id,$user[0]->idUSer);
+				if(count($result) > 0){
+					if($result[0]->NoRead > 0){
+						$totalNoRead++;
+					}
+				}
+			}
 		
 			foreach($chat as $item){
 				$date = date_create($item->sent_at);
@@ -572,6 +570,7 @@ class Api extends REST_Controller {
 				$item->blockYour = $user[0]->status;
 				$item->blockMe = $user2[0]->status;
 				$item->image = $item->id . ".png";
+				$item->totalNoRead = $totalNoRead;
 				$item->type = $user[0]->type;
 				$item->identifier = $user[0]->identifier;
 				$total = strlen($this->post('message'));
@@ -628,6 +627,9 @@ class Api extends REST_Controller {
 			}
 			$dateBefore = "";
 			foreach($messages as $item){
+				
+				$item->message = utf8_encode( $item->message );
+				$item->message = utf8_decode( $item->message );
 				if($item->sender_id == $this->get('idApp')){
 					$item->isMe = true;
 				}else{
@@ -723,30 +725,6 @@ class Api extends REST_Controller {
 					$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
 				}	
 			}
-			//$items = array();
-			
-			/*$items[0]->image = $this->get('idApp') . ".png";
-			$file  = "http://gluglis.travel/gluglis_api/assets/img/avatar/" . $this->get('idApp') . ".png";
-			$file_headers = @get_headers($file);
-			$file = $file_headers[0];
-			if($file_headers[0] == 'HTTP/1.1 200 OK') {
-				$items[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/" . $this->get('idApp') . ".png";
-			}else{
-				$items[0]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-			}
-			
-			$items[1]->image = $this->get('recipientId') . ".png";
-			$file  = "http://gluglis.travel/gluglis_api/assets/img/avatar/" . $this->get('recipientId') . ".png";
-			$file_headers = @get_headers($file);
-			$file = $file_headers[0];
-			if($file_headers[0] == 'HTTP/1.1 200 OK') {
-				$items[1]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/" . $this->get('recipientId') . ".png";
-			}else{
-				$items[1]->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-			}*/
-			
-			
-			//$obj = array('foo' => 'bar', 'property' => 'value');
 
 			$message = array('success' => true, 'items' => $items );
         }
@@ -759,11 +737,82 @@ class Api extends REST_Controller {
 	 * Obtiene los datos del usuario por id
 	 */
 	public function getUsersById_get(){
+		$langAbb = "en";
+		if($this->get('language')){
+			$langAbb = $this->get('language');
+		}
 		$items = $this->api_db->getUsersById($this->get('idApp'));
         foreach($items as $item){
-            $item->idiomas = unserialize($item->idiomas);
-            $item->hobbies = unserialize($item->hobbies);
-			$item->deportes = unserialize($item->deportes);
+			$idioma = unserialize($item->idiomas);
+			$idioma2 = array();
+			foreach($idioma as $id){
+				$data = $this->api_db->getOrderByLanguage(137, $id);
+				$data2 = $this->api_db->getOptionByLanguage($langAbb, 137, $data[0]->option_order);
+				array_push( $idioma2,$data2[0]->name );
+			}
+			$item->idiomas = $idioma2;
+			//hobbies dependiendo del idioma
+			$hobbies = unserialize($item->hobbies);
+			$hobbies2 = array();
+			foreach($hobbies as $id){
+				$data = $this->api_db->getOrderByLanguage( 322, $id);
+				$lang = $this->api_db->getOptionByLanguage($langAbb, 322, $data[0]->option_order);
+				array_push( $hobbies2,$lang[0]->name );
+			}
+			$item->hobbies = $hobbies2;
+			//deportes dependiendo del idioma
+			$deportes = unserialize($item->deportes);
+			$deportes2 = array();
+			foreach($deportes as $id){
+				$data = $this->api_db->getOrderByLanguage( 353, $id );
+				$lang = $this->api_db->getOptionByLanguage( $langAbb, 353, $data[0]->option_order );
+				array_push( $deportes2,$lang[0]->name );
+			}
+			$item->deportes = $deportes2;
+			
+			//genero
+			if( $item->genero ){
+				$data = $this->api_db->getOrderByLanguage( 3, $item->genero );
+				$lang = $this->api_db->getOptionByLanguage( $langAbb, 3, $data[0]->option_order );
+				$item->genero = $lang[0]->name;
+			}
+			
+			//genero
+			if( $item->genero ){
+				$data = $this->api_db->getOrderByLanguage( 3, $item->genero );
+				$lang = $this->api_db->getOptionByLanguage( $langAbb, 3, $data[0]->option_order );
+				$item->genero = $lang[0]->name;
+			}
+			
+			//tiempo de residencia
+			if( $item->tiempoResidencia ){
+				$data = $this->api_db->getOrderByLanguage( 14, $item->tiempoResidencia );
+				$lang = $this->api_db->getOptionByLanguage( $langAbb, 14, $data[0]->option_order );
+				$item->tiempoResidencia = $lang[0]->name;
+			}
+			
+			//nivel de Estudio 
+			if( $item->nivelEstudio ){
+				$data = $this->api_db->getOrderByLanguage( 125, $item->nivelEstudio );
+				$lang = $this->api_db->getOptionByLanguage( $langAbb, 125, $data[0]->option_order );
+				$item->nivelEstudio = $lang[0]->name;
+			}
+			
+			//formacion Profesional 
+			if( $item->areaLaboral ){
+				$data = $this->api_db->getOrderByLanguage( 214, $item->areaLaboral );
+				$lang = $this->api_db->getOptionByLanguage( $langAbb, 214, $data[0]->option_order );
+				$item->areaLaboral = $lang[0]->name;
+			}
+			
+			$item->cuentaPropia = unserialize($item->cuentaPropia);
+			if($item->cuentaPropia> 0){
+				$item->cuentaPropia = $item->cuentaPropia[0];
+			}
+			
+			//$item->idiomas = unserialize($item->idiomas);
+			//$item->hobbies = unserialize($item->hobbies);
+			//$item->deportes = unserialize($item->deportes);
 			$item->image2 = $item->image;
 			$file  = "http://gluglis.travel/gluglis_api/assets/img/avatar/" . $item->image;
 			$file_headers = @get_headers($file);
@@ -811,6 +860,11 @@ class Api extends REST_Controller {
 			$version = $this->get('version');
 		}
 		
+		$langAbb = "en";
+		if($this->get('language')){
+			$langAbb = $this->get('language');
+		}
+		
 		$data = array(
 			'city' 				=> $this->get('city'),
 		);
@@ -818,13 +872,9 @@ class Api extends REST_Controller {
 		$items = $this->api_db->getUsersByCity($this->get('idApp'),$data,$this->get('limit'), $version, 1 );
 		
         foreach($items as $item){
-            $item->idiomas = unserialize($item->idiomas);
-            $item->hobbies = unserialize($item->hobbies);
-			$item->deportes = unserialize($item->deportes);
+			$this->translateItems($item, $langAbb);
 			$item->cuentaPropia = unserialize($item->cuentaPropia);
 			$item->image2 = $item->image;
-            //$imgAvatar = get_avatar( $item->id );
-			//$avatar = $this->extraerSRC($imgAvatar);
 			$file  = "http://gluglis.travel/gluglis_api/assets/img/avatar/" . $item->image;
 			$file_headers = @get_headers($file);
 			$file = $file_headers[0];
@@ -833,27 +883,6 @@ class Api extends REST_Controller {
 			}else{
 				$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
 			}
-			//$avatar = false;
-			/*if($avatar){
-				//$item->image2 = $avatar;
-				$file = $avatar;
-				$file_headers = @get_headers($file);
-				if($file_headers[0] == 'HTTP/1.1 404 Not Found') {
-					$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-				}else {
-					$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-					/*$mystring = $avatar;
-					$findme   = 'www.gravatar.com';
-					$pos = strpos($mystring, $findme);
-					if ($pos === false) {
-						$item->image2 = $avatar;
-					}else{
-						$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-					}*/
-				/*}
-			}else{
-				$item->image2 = "http://gluglis.travel/gluglis_api/assets/img/avatar/avatar.png";
-			}*/
         }
 		
 		if(count($items) > 0){
@@ -861,16 +890,74 @@ class Api extends REST_Controller {
 		}else{
 			require_once( 'Language.php');
 			$lang = new Language();
-			$langAbb = "en";
+			/*$langAbb = "en";
 			if($this->get('language')){
 				$langAbb = $this->get('language');
-			}
+			}*/
 			$language = $lang->selectLanguage($langAbb);
 			
 			$message = array('success' => false, 'message' => $language['NoUserWasFound'] );
 		}
         
         $this->response($message, 200);
+	}
+	
+	private function translateItems( $item, $langAbb ){
+		
+		$idioma = unserialize($item->idiomas);
+		$idioma2 = array();
+		foreach($idioma as $id){
+			$data = $this->api_db->getOrderByLanguage(137, $id);
+			$data2 = $this->api_db->getOptionByLanguage($langAbb, 137, $data[0]->option_order);
+			array_push( $idioma2,$data2[0]->name );
+		}
+		$item->idiomas = $idioma2;
+		//hobbies dependiendo del idioma
+		$hobbies = unserialize($item->hobbies);
+		$hobbies2 = array();
+		foreach($hobbies as $id){
+			$data = $this->api_db->getOrderByLanguage( 322, $id);
+			$lang = $this->api_db->getOptionByLanguage($langAbb, 322, $data[0]->option_order);
+			array_push( $hobbies2,$lang[0]->name );
+		}
+		$item->hobbies = $hobbies2;
+		//deportes dependiendo del idioma
+		$deportes = unserialize($item->deportes);
+		$deportes2 = array();
+		foreach($deportes as $id){
+			$data = $this->api_db->getOrderByLanguage( 353, $id );
+			$lang = $this->api_db->getOptionByLanguage( $langAbb, 353, $data[0]->option_order );
+			array_push( $deportes2,$lang[0]->name );
+		}
+		$item->deportes = $deportes2;
+			
+		//genero
+		if( $item->genero ){
+			$data = $this->api_db->getOrderByLanguage( 3, $item->genero );
+			$lang = $this->api_db->getOptionByLanguage( $langAbb, 3, $data[0]->option_order );
+			$item->genero = $lang[0]->name;
+		}
+			
+		//tiempo de residencia
+		if( $item->tiempoResidencia ){
+			$data = $this->api_db->getOrderByLanguage( 14, $item->tiempoResidencia );
+			$lang = $this->api_db->getOptionByLanguage( $langAbb, 14, $data[0]->option_order );
+			$item->tiempoResidencia = $lang[0]->name;
+		}
+			
+		//nivel de Estudio 
+		if( $item->nivelEstudio ){
+			$data = $this->api_db->getOrderByLanguage( 125, $item->nivelEstudio );
+			$lang = $this->api_db->getOptionByLanguage( $langAbb, 125, $data[0]->option_order );
+			$item->nivelEstudio = $lang[0]->name;
+		}
+			
+		//formacion Profesional 
+		if( $item->areaLaboral ){
+			$data = $this->api_db->getOrderByLanguage( 214, $item->areaLaboral );
+			$lang = $this->api_db->getOptionByLanguage( $langAbb, 214, $data[0]->option_order );
+			$item->areaLaboral = $lang[0]->name;
+		}
 	}
 	
 	/**
@@ -881,6 +968,14 @@ class Api extends REST_Controller {
 		if($this->get('version')){
 			$version = $this->get('version');
 		}
+		
+		$langAbb = "en";
+		if($this->get('language')){
+			if($this->get('language') == "es"){
+				$langAbb = $this->get('language');
+			}
+		}
+		
 		$data = array(
 			'city' 				=> $this->get('city'),
 			'iniDate'			=> $this->get('iniDate'),
@@ -895,9 +990,12 @@ class Api extends REST_Controller {
 		$items = $this->api_db->getUsersByFilter($this->get('idApp'),$data,$this->get('limit'),$version, 1);
 		
         foreach($items as $item){
-            $item->idiomas = unserialize($item->idiomas);
+            /*$item->idiomas = unserialize($item->idiomas);
             $item->hobbies = unserialize($item->hobbies);
-			$item->deportes = unserialize($item->deportes);
+			$item->deportes = unserialize($item->deportes);*/
+			
+			$this->translateItems($item, $langAbb);
+			
 			$item->cuentaPropia = unserialize($item->cuentaPropia);
 			$item->image2 = $item->image;
 			$file  = "http://gluglis.travel/gluglis_api/assets/img/avatar/" . $item->image;
@@ -1051,14 +1149,21 @@ class Api extends REST_Controller {
 	 * Obtiene la lista de hobbies
 	 */
 	public function getHobbies_get(){
+		$langAbb = "en";
+		if($this->get('language')){
+			$langAbb = $this->get('language');
+		}
+		/*if($this->get('language')){
+			$langAbb = $this->get('language');
+		}*/
 		
-		$items = $this->api_db->getHobbies();
-		$items2 = $this->api_db->getLanguage();
-		$items3 = $this->api_db->getSport();
-		$items4 = $this->api_db->getResidenceTime();
-		$items5 = $this->api_db->getRace();
-		$items6 = $this->api_db->getWorkArea();
-		$items7 = $this->api_db->getGender();
+		$items = $this->api_db->getHobbies($langAbb);
+		$items2 = $this->api_db->getLanguage($langAbb);
+		$items3 = $this->api_db->getSport($langAbb);
+		$items4 = $this->api_db->getResidenceTime($langAbb);
+		$items5 = $this->api_db->getRace($langAbb);
+		$items6 = $this->api_db->getWorkArea($langAbb);
+		$items7 = $this->api_db->getGender($langAbb);
         $message = array('success' => true, 'hobbies' => $items, 'language' => $items2, 'sport' => $items3, 'residenceTime' => $items4, 'race' => $items5, 'workArea' => $items6, 'gender' => $items7 );
         $this->response($message, 200);
 	}
@@ -1469,11 +1574,13 @@ class Api extends REST_Controller {
 				$this->api_db->insertXProfileData($updateXdata);
 			}
 			
+			$ownAccount = serialize(array($this->get('ownAccount')));
+			
 			//ownAccount
 			$updateXdata = array(
 				'field_id' 			=> 319,
 				'user_id' 			=> $this->get('idApp'),
-				'value' 			=> $this->get('ownAccount'),
+				'value' 			=> $ownAccount,
 				'last_updated' 		=> $strHoy,
 			);
 			//verifica si existe ya el campo en la bd
@@ -1485,13 +1592,11 @@ class Api extends REST_Controller {
 				$this->api_db->insertXProfileData($updateXdata);
 			}
 			
-			//pet
+			//mascotas
 			$pet = "No";
 			if($this->get('pet')){
 				$pet = "SÃ­";
 			}
-			
-			//carga los datos de la residencia
 			$updateXdata = array(
 				'field_id' 			=> 121,
 				'user_id' 			=> $this->get('idApp'),
@@ -1506,7 +1611,6 @@ class Api extends REST_Controller {
 			}else{
 				$this->api_db->insertXProfileData($updateXdata);
 			}
-			
 			if($pet == "SÃ­"){
 				//carga los datos de la residencia
 				$updateXdata = array(
@@ -1525,7 +1629,7 @@ class Api extends REST_Controller {
 				}
 			}
 			
-			//smoke
+			//smoke ¿Fumas?
 			$updateXdata = array(
 				'field_id' 			=> 112,
 				'user_id' 			=> $this->get('idApp'),
@@ -1541,7 +1645,7 @@ class Api extends REST_Controller {
 				$this->api_db->insertXProfileData($updateXdata);
 			}
 			
-			//drink
+			//drink ¿Bebes?
 			$updateXdata = array(
 				'field_id' 			=> 115,
 				'user_id' 			=> $this->get('idApp'),
@@ -1557,7 +1661,7 @@ class Api extends REST_Controller {
 				$this->api_db->insertXProfileData($updateXdata);
 			}
 			
-			//drink
+			//Psicotrópicos
 			$updateXdata = array(
 				'field_id' 			=> 118,
 				'user_id' 			=> $this->get('idApp'),
@@ -1625,13 +1729,13 @@ class Api extends REST_Controller {
 				}
 			}
 			
-			//pet
+			//practicas deporte
 			$sport = "No";
 			if($this->get('sport')){
 				$sport = "SÃ­";
 			}
 			
-			//carga los datos de la residencia
+			//carga los datos de deportes
 			$updateXdata = array(
 				'field_id' 			=> 350,
 				'user_id' 			=> $this->get('idApp'),

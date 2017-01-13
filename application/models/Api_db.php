@@ -77,6 +77,12 @@ Class api_db extends CI_MODEL
         $this->db->update('wp_users');
 	}
 	
+	public function updateAvatarCreate($id, $playerId){
+		$this->db->set('wp_users.imagen', $playerId); 
+		$this->db->where('wp_users.ID = ', $id);
+        $this->db->update('wp_users');
+	}
+	
 	/************** Pantalla MESSAGES ******************/
 	
 	/**
@@ -88,6 +94,8 @@ Class api_db extends CI_MODEL
 		$this->db->where('wp_bp_chat_channel_users.user_id = ', $id);
         return $this->db->get()->result();
 	}
+	
+	
 	
 	/**
 	 * obtenemos la lista de mensajes chats del usuario
@@ -104,6 +112,8 @@ Class api_db extends CI_MODEL
 		$this->db->order_by('wp_bp_chat_messages.sent_at', 'desc');
         return $this->db->get()->result();
 	}
+	
+	
 	
 	/**
 	 * obtenemos la lista de mensajes chats con mensajes no leidos
@@ -124,7 +134,7 @@ Class api_db extends CI_MODEL
 	public function getUserChat($channelId,$id){
 		$this->db->select('wp_bp_chat_channel_users.status');
 		$this->db->select('wp_users.id as idUSer, wp_users.display_name, wp_users.playerId');
-		$this->db->select('wp_social_users.type, wp_social_users.identifier');
+		$this->db->select('wp_social_users.type, wp_social_users.identifier, wp_users.imagen');
 		$this->db->from('wp_bp_chat_channel_users');
 		$this->db->join('wp_users', 'wp_users.id = wp_bp_chat_channel_users.user_id');
 		$this->db->join('wp_social_users', 'wp_social_users.ID = wp_users.id','left');
@@ -175,7 +185,7 @@ Class api_db extends CI_MODEL
 	 */
 	public function getMessagesByChannel($channelId, $timeZone){
 		$this->db->select('wp_bp_chat_messages.id, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.sender_id');
-		$this->db->select('wp_bp_chat_messages.message, wp_bp_chat_messages.status_message, users.identifier');
+		$this->db->select('wp_bp_chat_messages.message, wp_bp_chat_messages.status_message, users.identifier, users.image');
 		$this->db->select('DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR ) as sent_at', false);
 		$this->db->select('UNIX_TIMESTAMP(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as sent_at_unix', false);
 		$this->db->select('date(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as dateOnly', false);
@@ -191,11 +201,12 @@ Class api_db extends CI_MODEL
 	 */
 	public function getMessagesByChannelNotRead($channelId, $idApp,$timeZone){
 		$this->db->select('wp_bp_chat_messages.id, wp_bp_chat_messages.channel_id, wp_bp_chat_messages.sender_id');
-		$this->db->select('wp_bp_chat_messages.message, wp_bp_chat_messages.status_message');
+		$this->db->select('wp_bp_chat_messages.message, wp_bp_chat_messages.status_message, users.image');
 		$this->db->select('DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR ) as sent_at', false);
 		$this->db->select('UNIX_TIMESTAMP(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as sent_at_unix', false);
 		$this->db->select('date(DATE_ADD(sent_at,INTERVAL '.$timeZone.' HOUR )) as dateOnly', false);
 		$this->db->from('wp_bp_chat_messages');
+		$this->db->join('users', 'users.id = wp_bp_chat_messages.sender_id');
 		$this->db->where('wp_bp_chat_messages.channel_id = ', $channelId);
 		$this->db->where('wp_bp_chat_messages.status_message = ', 0);
 		$this->db->where('wp_bp_chat_messages.sender_id != ', $idApp);
@@ -283,6 +294,25 @@ Class api_db extends CI_MODEL
 		$this->db->where('users.id = ', $idApp);
 		return $this->db->get()->result();
 	}
+	
+	
+	public function getOrderByLanguage($idField, $text){
+		$this->db->select('wp_bp_xprofile_fields.option_order');
+		$this->db->from('wp_bp_xprofile_fields');
+		$this->db->where('wp_bp_xprofile_fields.parent_id =  ', $idField);
+		$this->db->where('wp_bp_xprofile_fields.name = ', $text);
+        return $this->db->get()->result();
+	}
+	
+	public function getOptionByLanguage($language, $idField, $order){
+		$this->db->select('wp_bp_xprofile_fields.name');
+		$this->db->from('wp_bp_xprofile_fields');
+		$this->db->where('wp_bp_xprofile_fields.parent_id =  ', $idField);
+		$this->db->where('wp_bp_xprofile_fields.language = ', $language);
+		$this->db->where('wp_bp_xprofile_fields.option_order = ', $order);
+        return $this->db->get()->result();
+	}
+	
 	
 	/**
 	 * Obtiene los usuarios por ciudad
@@ -420,70 +450,77 @@ Class api_db extends CI_MODEL
 	/**
 	 * obtiene la lista de genero
 	 */
-	public function getGender(){
+	public function getGender($language){
 		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
 		$this->db->from('wp_bp_xprofile_fields');
 		$this->db->where('wp_bp_xprofile_fields.parent_id = 3 ');
+		$this->db->where('wp_bp_xprofile_fields.language = ', $language);
         return $this->db->get()->result();
 	}
 	
 	/**
 	 * obtiene la lista de hobbies
 	 */
-	public function getHobbies(){
+	public function getHobbies($language){
 		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
 		$this->db->from('wp_bp_xprofile_fields');
 		$this->db->where('wp_bp_xprofile_fields.parent_id = 322 ');
+		$this->db->where('wp_bp_xprofile_fields.language = ', $language);
         return $this->db->get()->result();
 	}
 	
 	/**
 	 * obtiene la lista de idiomas
 	 */
-	public function getLanguage(){
+	public function getLanguage($language){
 		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
 		$this->db->from('wp_bp_xprofile_fields');
 		$this->db->where('wp_bp_xprofile_fields.parent_id = 137 ');
+		$this->db->where('wp_bp_xprofile_fields.language = ', $language);
         return $this->db->get()->result();
 	}
 	
 	/**
 	 * obtiene la lista de deportes
 	 */
-	public function getSport(){
+	public function getSport( $language ){
 		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
 		$this->db->from('wp_bp_xprofile_fields');
 		$this->db->where('wp_bp_xprofile_fields.parent_id = 353 ');
+		$this->db->where('wp_bp_xprofile_fields.language = ', $language);
         return $this->db->get()->result();
 	}
 	
 	/**
 	 * obtiene la lista de deportes
 	 */
-	public function getResidenceTime(){
+	public function getResidenceTime( $language ){
 		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
 		$this->db->from('wp_bp_xprofile_fields');
 		$this->db->where('wp_bp_xprofile_fields.parent_id = 14 ');
+		$this->db->where('wp_bp_xprofile_fields.language = ', $language);
         return $this->db->get()->result();
 	}
 	
 	/**
 	 * obtiene la lista de deportes
 	 */
-	public function getRace(){
+	public function getRace( $language ){
 		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
 		$this->db->from('wp_bp_xprofile_fields');
 		$this->db->where('wp_bp_xprofile_fields.parent_id = 125 ');
+		$this->db->where('wp_bp_xprofile_fields.language = ', $language);
         return $this->db->get()->result();
 	}
 	
 	/**
 	 * obtiene la lista de deportes
 	 */
-	public function getWorkArea(){
+	public function getWorkArea( $language ){
 		$this->db->select('wp_bp_xprofile_fields.id, wp_bp_xprofile_fields.name');
 		$this->db->from('wp_bp_xprofile_fields');
 		$this->db->where('wp_bp_xprofile_fields.parent_id = 214 ');
+		$this->db->where('wp_bp_xprofile_fields.language = ', $language);
         return $this->db->get()->result();
 	}
 	
